@@ -176,7 +176,7 @@ namespace CLS_II
         private void addToolStripButton_Click(object sender, EventArgs e)
         {
             // 此处是产生新变量对象的代码
-            AdsVariableSample dlg = new AdsVariableSample(GlobalVar.AmsNetID, CLSConsts.EnabledChannels, "Feedback", new _Feedback());
+            AdsVariableSample dlg = new AdsVariableSample(CLSConsts.EnabledChannels, "Feedback", new _Feedback());
             dlg.StartPosition = FormStartPosition.CenterParent;
             DialogResult dr = dlg.ShowDialog();
             if (dr == DialogResult.OK)

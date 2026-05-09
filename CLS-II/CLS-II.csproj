@@ -151,13 +151,6 @@
     <Reference Include="System.Net.Http" />
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xml" />
-    <Reference Include="TwinCAT.Ads, Version=4.3.27.0, Culture=neutral, PublicKeyToken=180016cd49e5e8c3, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\..\..\0.库\Library\ADS\v4.0.30319\TwinCAT.Ads.dll</HintPath>
-    </Reference>
-    <Reference Include="TwinCAT.Ads.Reactive">
-      <HintPath>..\..\..\..\0.库\Library\ADS\v4.0.30319\TwinCAT.Ads.Reactive.dll</HintPath>
-    </Reference>
     <Reference Include="UDP">
       <HintPath>..\..\..\..\0.库\Library\SocketUDP\UDP.dll</HintPath>
     </Reference>
@@ -172,19 +165,6 @@
     <Compile Include="src_Dialog\AdsVariableSample.Designer.cs">
       <DependentUpon>AdsVariableSample.cs</DependentUpon>
     </Compile>
-    <Compile Include="src_Dialog\AdsPortSample.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="src_Dialog\AdsPortSample.Designer.cs">
-      <DependentUpon>AdsPortSample.cs</DependentUpon>
-    </Compile>
-    <Compile Include="src_Dialog\AdsSymbolSample.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="src_Dialog\AdsSymbolSample.Designer.cs">
-      <DependentUpon>AdsSymbolSample.cs</DependentUpon>
-    </Compile>
-    <Compile Include="src_IOData\AdsConfig.cs" />
     <Compile Include="CreateProject.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -256,7 +236,6 @@
     <Compile Include="src_watch_scope\ScopeView_YT.Designer.cs">
       <DependentUpon>ScopeView_YT.cs</DependentUpon>
     </Compile>
-    <Compile Include="src_IOData\AdsData.cs" />
     <Compile Include="src_communication\StructFunc.cs" />
     <Compile Include="src_IOData\UdpData.cs" />
     <Compile Include="src_IOData\UdpConfig.cs" />
@@ -270,9 +249,6 @@
       <DependentUpon>Watch.cs</DependentUpon>
     </Compile>
     <Compile Include="src_watch_scope\WatchConfig.cs" />
-    <EmbeddedResource Include="src_Dialog\AdsPortSample.resx">
-      <DependentUpon>AdsPortSample.cs</DependentUpon>
-    </EmbeddedResource>
     <EmbeddedResource Include="CreateProject.resx">
       <DependentUpon>CreateProject.cs</DependentUpon>
     </EmbeddedResource>
@@ -305,9 +281,6 @@
     </EmbeddedResource>
     <EmbeddedResource Include="form_body\ProjectInfo.resx">
       <DependentUpon>ProjectInfo.cs</DependentUpon>
-    </EmbeddedResource>
-    <EmbeddedResource Include="src_Dialog\AdsSymbolSample.resx">
-      <DependentUpon>AdsSymbolSample.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="src_Dialog\AdsVariableSample.resx">
       <DependentUpon>AdsVariableSample.cs</DependentUpon>

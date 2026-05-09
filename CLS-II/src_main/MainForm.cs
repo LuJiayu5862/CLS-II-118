@@ -16,9 +16,7 @@ namespace CLS_II
         // 创建多媒体定时器，周期10ms
         HPTimer mmTimer1;
         HPTimer mmTimer2;
-        DateTime targetDate = new DateTime(2025, 6, 30); // 例如，设置为2024年5月15日
-        bool expiredFlag = false;
-
+        
         public MainForm()
         {
             InitializeComponent();            

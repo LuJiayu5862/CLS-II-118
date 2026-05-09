@@ -32,41 +32,16 @@ namespace CLS_II
             
         }
 
-        private void TreeViewLoad()
-        {           
-            treeView1.Nodes.Clear();
-            for (int i = 0; i < CLSConsts.EnabledChannels; i++)
-            {
-                TreeNode[] nodes = {
-                new TreeNode("CLSModel"),
-                new TreeNode("CLSParam"),
-                new TreeNode("CLS5K"),
-                new TreeNode("CLSConsts"),
-                new TreeNode("TestMDL")
-                };
-                TreeNode node = new TreeNode("Channel" + (i + 1), nodes);
-                treeView1.Nodes.Add(node);
-                treeView1.Nodes[i].Tag = i;
-                for (int j = 0; j < treeView1.Nodes[i].Nodes.Count; j++)
-                {
-                    treeView1.Nodes[i].Nodes[j].Tag = j;
-                }                
-            }
-        }
-
         private void DeviceInfo_Load(object sender, EventArgs e)
         {
             ControlSizeLoad();
             textBox1.Text = GlobalVar.DeviceName;
             textBox2.Text = GlobalVar.szRemoteHost;
-            textBox3.Text = GlobalVar.AmsNetID;
             textBox4.Text = CLSConsts.EnabledChannels.ToString();
-            TreeViewLoad();
-            cbxAdsEnabled.SelectedIndex = 0;
 
             timer1.Enabled = true;
             timer1.Start();
-            tabControl1.Visible = false;
+            
 
             isInited = true;
         }
@@ -268,27 +243,7 @@ namespace CLS_II
             }
         }
 
-        private void tbxAdsPort_KeyDown(object sender, KeyEventArgs e)
-        {
-            if (GlobalVar.isUdpConnceted)
-                return;
-            if (e.KeyCode == Keys.Enter)
-            {
-                if (!RegexMatch.isPositiveInteger(tbxAdsPort.Text))
-                {
-                    int rootIndex = (int)treeView1.SelectedNode.Tag;
-                    tbxAdsPort.Text = AdsInfo.AdsObject.AdsPort[rootIndex].Port.ToString();
-                    tbxAdsPort.BackColor = SystemColors.Window;
-                }
-                else
-                {
-                    int rootIndex = (int)treeView1.SelectedNode.Tag;
-                    AdsInfo.AdsObject.AdsPort[rootIndex].Port = int.Parse(tbxAdsPort.Text);
-                    tbxAdsPort.BackColor = SystemColors.Window;
-                    GlobalVar.isProjectFileChanged = true;
-                }
-            }
-        }
+        
 
         private void tbxIndexGroup_KeyDown(object sender, KeyEventArgs e)
         {

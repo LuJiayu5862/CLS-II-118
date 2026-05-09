@@ -66,7 +66,6 @@
             this.toolStripStatusLabel6 = new System.Windows.Forms.ToolStripStatusLabel();
             this.udpStateToolStripStatusLabel = new System.Windows.Forms.ToolStripStatusLabel();
             this.toolStripStatusLabel5 = new System.Windows.Forms.ToolStripStatusLabel();
-            this.adsStateToolStripStatusLabel = new System.Windows.Forms.ToolStripStatusLabel();
             this.panel_Menu = new System.Windows.Forms.Panel();
             this.panel2 = new System.Windows.Forms.Panel();
             this.treeView2 = new System.Windows.Forms.TreeView();
@@ -330,8 +329,7 @@
             this.toolStripStatusLabel3,
             this.toolStripStatusLabel6,
             this.udpStateToolStripStatusLabel,
-            this.toolStripStatusLabel5,
-            this.adsStateToolStripStatusLabel});
+            this.toolStripStatusLabel5});
             resources.ApplyResources(this.statusStripMain, "statusStripMain");
             this.statusStripMain.Name = "statusStripMain";
             // 
@@ -366,11 +364,6 @@
             this.toolStripStatusLabel5.ForeColor = System.Drawing.SystemColors.ButtonShadow;
             this.toolStripStatusLabel5.Name = "toolStripStatusLabel5";
             resources.ApplyResources(this.toolStripStatusLabel5, "toolStripStatusLabel5");
-            // 
-            // adsStateToolStripStatusLabel
-            // 
-            this.adsStateToolStripStatusLabel.Name = "adsStateToolStripStatusLabel";
-            resources.ApplyResources(this.adsStateToolStripStatusLabel, "adsStateToolStripStatusLabel");
             // 
             // panel_Menu
             // 
@@ -747,7 +740,6 @@
         private System.Windows.Forms.StatusStrip statusStrip1;
         private System.Windows.Forms.ToolStripStatusLabel toolStripStatusLabel4;
         private System.Windows.Forms.ToolStripStatusLabel toolStripStatusLabel5;
-        private System.Windows.Forms.ToolStripStatusLabel adsStateToolStripStatusLabel;
     }
 }
 

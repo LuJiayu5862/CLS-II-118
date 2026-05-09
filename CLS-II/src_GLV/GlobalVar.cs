@@ -5,7 +5,6 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
-using TwinCAT.Ads;
 
 namespace CLS_II
 {
@@ -60,7 +59,6 @@ namespace CLS_II
         }
         public static string szRemoteHost = "127.0.0.1";
         public static int nPortIn = 1703, nPortOut1 = 1702, nPortOut2 = 1704;
-        public static string AmsNetID = "127.0.0.1.1.1";
     }
 
     public static class CLSConsts

@@ -206,9 +206,7 @@ namespace CLS_II
                 {
                     SetDefaultRemoteHost(GlobalVar.szRemoteHost, GlobalVar.nPortIn, GlobalVar.nPortOut1, GlobalVar.nPortOut2);
                     InitUDP();
-                    //InitADS();
                     udpStateToolStripStatusLabel.Text = GlobalVar.szRemoteHost;
-                    //adsStateToolStripStatusLabel.Text = GlobalVar.AmsNetID;
                 }
                 catch (Exception err)
                 {
@@ -241,7 +239,6 @@ namespace CLS_II
             {
                 DisposeUDP();
                 udpStateToolStripStatusLabel.Text = string.Empty;
-                adsStateToolStripStatusLabel.Text = string.Empty;
             }
             if (MultiLanguage.DefaultLanguage == "zh")
             {
@@ -338,9 +335,7 @@ namespace CLS_II
             {
                 iniFileRW.INIWriteValue(ProjectFile, "Device", "Name", GlobalVar.DeviceName);
                 iniFileRW.INIWriteValue(ProjectFile, "Device", "IP", GlobalVar.szRemoteHost);
-                //iniFileRW.INIWriteValue(ProjectFile, "Device", "AmsNetID", GlobalVar.AmsNetID);
                 iniFileRW.INIWriteValue(ProjectFile, "Device", "ChannelCount", CLSConsts.EnabledChannels.ToString());
-                AdsInfo.AdsObject.WriteConfig(ProjectFile);
             }
         }
 
@@ -352,11 +347,8 @@ namespace CLS_II
                     iniFileRW.INIGetStringValue(ProjectFile, "Device", "Name", "Untitled Device");
                 GlobalVar.szRemoteHost = 
                     iniFileRW.INIGetStringValue(ProjectFile, "Device", "IP", "127.0.0.1");
-                //GlobalVar.AmsNetID = 
-                //    iniFileRW.INIGetStringValue(ProjectFile, "Device", "AmsNetID", "127.0.0.1.1.1");
                 CLSConsts.EnabledChannels =
                     int.Parse(iniFileRW.INIGetStringValue(ProjectFile, "Device", "ChannelCount", "10"));
-                AdsInfo.AdsObject.ReadConfig(ProjectFile);
             }
         }
 

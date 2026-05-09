@@ -9,11 +9,6 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using TwinCAT;
-using TwinCAT.Ads;
-using TwinCAT.Ads.TypeSystem;
-using TwinCAT.Ads.ValueAccess;
-using TwinCAT.TypeSystem;
 
 namespace CLS_II
 {
@@ -21,13 +16,6 @@ namespace CLS_II
     {
         #region Private Variable
         private int _ChannelCount = 0;
-        private string _AmsNetID = "127.0.0.1.1.1";
-        private int _Port = 0;
-        private int R1 = 350, R2 = 365, R3 = 851, R4 = 860;
-        private string _PortName = string.Empty;
-
-        private TcAdsClient adsClient = new TcAdsClient();
-        private ISymbolLoader symbolLoader;
         private const String DEFAULT_TEXT = "Enter Name...";
         #endregion
 
@@ -35,13 +23,11 @@ namespace CLS_II
         public List<_WatchVarietyInfo> WatchVarietyInfos = new List<_WatchVarietyInfo>();
         #endregion
 
-        public AdsVariableSample(string AmsNetID, int ChannelCount, string UDPItem1, object UDPStruct1)
+        public AdsVariableSample(int ChannelCount, string UDPItem1, object UDPStruct1)
         {
             InitializeComponent();
 
-            //this._AmsNetID = AmsNetID;
             this._ChannelCount = ChannelCount;
-            //adsClient.Timeout = 300;
 
             SetUDPTreeNode(UDPItem1, UDPStruct1);
         }
@@ -139,140 +125,7 @@ namespace CLS_II
             WatchVarietyInfos.Add(vi);
             dataGridView1.DataSource = new BindingList<_WatchVarietyInfo>(WatchVarietyInfos);
             dataGridView1.Rows[0].DefaultCellStyle.BackColor = SystemColors.Control;
-
-            //SearchPorts(R1, R2, R3, R4);
         }
-
-        //private void treeView1_AfterSelect(object sender, TreeViewEventArgs e)
-        //{
-        //    if (treeView1.SelectedNode != null)
-        //    {
-        //        if (treeView1.SelectedNode.Tag != null)
-        //        {    
-        //            int port = (int)treeView1.SelectedNode.Tag;
-        //            AdsNodeCreate(port);
-        //        }
-        //        else
-        //        {
-        //            treeView3.Nodes.Clear();
-        //        }
-        //    }
-        //}
-
-        private void AdsNodeCreate(int port)
-        {
-            this._Port = port;
-            treeView3.Nodes.Clear();
-            if (adsClient.IsConnected)
-            {
-                adsClient.Disconnect();
-            }
-            adsClient.Connect(this._AmsNetID, this._Port);
-            StateInfo adsDevice = new StateInfo();
-            AdsErrorCode errorinfo = adsClient.TryReadState(out adsDevice);
-            bool result = errorinfo == AdsErrorCode.NoError;
-            if (result)
-            {
-                SymbolLoaderSettings settings = new SymbolLoaderSettings(SymbolsLoadMode.VirtualTree, ValueAccessMode.IndexGroupOffsetPreferred);
-                symbolLoader = SymbolLoaderFactory.Create(adsClient, settings);
-                if (symbolLoader.Symbols.Count > 0)
-                {
-                    TreeNode portNode = treeView3.Nodes.Add(port.ToString());
-                    foreach (ISymbol symbol in symbolLoader.Symbols)
-                    {
-                        portNode.Nodes.Add(CreateNewNode(symbol));
-                    }
-                }
-            }
-        }
-
-        private TreeNode CreateNewNode(ISymbol symbol)
-        {
-            TreeNode node = new TreeNode(symbol.InstanceName);
-            if (CheckSymbolType(symbol))
-            {
-                _WatchVarietyInfo vi = SetADSTreeNode(symbol);
-                node.Tag = vi;
-            }
-
-            foreach (ISymbol subsymbol in symbol.SubSymbols)
-            {
-                node.Nodes.Add(CreateNewNode(subsymbol));
-            }
-            return node;
-        }
-
-        string[] ValidType = { "SINT", "INT", "DINT", "LINT", "USINT", "UINT", "UDINT", "ULINT", "REAL", "LREAL", "BOOL", "STRING", "BIT" };
-        private bool CheckSymbolType(ISymbol symbol)
-        {
-            if (symbol.SubSymbols.Count > 0)
-                return false;
-            foreach (string vType in ValidType)
-            {
-                if (RegexMatch.isSameName(vType, symbol.DataType.ToString()))
-                {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        private _WatchVarietyInfo SetADSTreeNode(ISymbol symbol)
-        {
-            _WatchVarietyInfo result = new _WatchVarietyInfo();
-
-            result.Name = symbol.InstanceName;
-            result.Category = "ADS";
-            result.Port = this._Port.ToString();
-            result.Source = symbol.InstancePath;
-            result.Type = symbol.DataType.ToString();
-            result.Size = symbol.Size.ToString();
-            result.Comment = string.IsNullOrEmpty(symbol.Comment) ? "" : symbol.Comment;
-
-            return result;
-        }
-
-        //private void SearchPorts(int R1, int R2, int R3, int R4)
-        //{
-        //    treeView1.Nodes.Clear();
-        //    treeView1.Nodes.Add("ADS");
-        //    if (R1 != -1)
-        //    {
-        //        for (int port = R1; port <= R2; port++)
-        //        {
-        //            CreatePortNode(port);
-        //        }
-        //    }
-        //    if (R3 != -1)
-        //    {
-        //        for (int port = R3; port <= R4; port++)
-        //        {
-        //            CreatePortNode(port);
-        //        }
-        //    }
-        //}
-
-        //private void CreatePortNode(int port)
-        //{
-        //    if (adsClient.IsConnected)
-        //        adsClient.Disconnect();
-        //    adsClient.Connect(this._AmsNetID, port);
-        //    StateInfo adsDevice = new StateInfo();
-        //    AdsErrorCode errorinfo = adsClient.TryReadState(out adsDevice);
-        //    bool result = errorinfo == AdsErrorCode.NoError;
-        //    if (result)
-        //    {
-        //        SymbolLoaderSettings settings = new SymbolLoaderSettings(SymbolsLoadMode.VirtualTree, ValueAccessMode.IndexGroupOffsetPreferred);
-        //        symbolLoader = SymbolLoaderFactory.Create(adsClient, settings);
-        //        TreeNode portNode = treeView1.Nodes[0];
-        //        if (symbolLoader.Symbols.Count > 0)
-        //        {
-        //            portNode.Nodes.Add(port.ToString());
-        //            portNode.Nodes[portNode.Nodes.Count - 1].Tag = port;
-        //        }
-        //    }
-        //    adsClient.Disconnect();
-        //}
 
         private void treeView2_AfterSelect(object sender, TreeViewEventArgs e)
         {
