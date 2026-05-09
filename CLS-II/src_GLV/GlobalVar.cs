@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -68,5 +68,27 @@ namespace CLS_II
         public const int TotalSymbols = 5;
     }
 
-    
+    // ============================================================
+    //  JD-61101 通道配置常量
+    //  与旧通道 GlobalVar 完全独立，不修改原字段
+    // ============================================================
+    public static class JdConsts
+    {
+        public static bool   isJdUdpConnected = false;
+        public static string szJdRemoteHost   = "192.168.118.118";
+        public static int    nJdPortSend      = 16000;  // PC → PLC
+        public static int    nJdPortRecv      = 15000;  // PLC → PC
+    }
+
+    // ============================================================
+    //  TcLCS v1.1 参数通道配置常量
+    //  与旧通道 GlobalVar 完全独立，不修改原字段
+    // ============================================================
+    public static class ParamConsts
+    {
+        public static bool   isParamUdpConnected = false;
+        public static string szParamRemoteHost   = "192.168.118.50";
+        public static int    nParamPortSend      = 8080;  // PC → 控制器
+        public static int    nParamPortRecv      = 5050;  // 控制器 → PC
+    }
 }
