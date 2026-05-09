@@ -368,6 +368,10 @@
       <DependentUpon>Settings.settings</DependentUpon>
       <DesignTimeSharedInput>True</DesignTimeSharedInput>
     </Compile>
+    <None Include="_docs\TcLCS-UDP_Protocol_v1.1.docx" />
+    <None Include="_docs\TcLCS-UDP_Protocol_v1.1_AppendixC.docx" />
+    <None Include="_docs\TcLCS-UDP_TestCard_v1.1.docx" />
+    <None Include="_docs\TcLCS-UDP_v1.1_Handoff_Snapshot.md" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
