@@ -16,87 +16,88 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+using UDP;
 
 namespace CLS_II
 {
     public sealed class JdUdpClient : IDisposable
     {
-        private readonly IPEndPoint _remote;   // 设备: 118.118:15000
-        private readonly int _localRecvPort; // 上位机: 16000
-        private UdpClient _udp;
-        private CancellationTokenSource _cts;
-        private Task _rxLoop;
+        private readonly string _remoteHost;
+        private readonly int _remotePort;
+        private readonly int _localRecvPort;
+        private UDPClient _udp;
 
         public event Action<JdRxFrame> OnRx;
-        public event Action<string, byte[]> OnRxError;      // (reason, raw)
+        public event Action<string, byte[]> OnRxError;   // (reason, raw)
         public event Action<string> OnLog;
 
         public bool IsRunning => _udp != null;
 
         public JdUdpClient(string remoteHost, int remotePort, int localRecvPort)
         {
-            _remote = new IPEndPoint(IPAddress.Parse(remoteHost), remotePort);
+            _remoteHost = remoteHost;
+            _remotePort = remotePort;
             _localRecvPort = localRecvPort;
         }
 
         public void Start()
         {
             if (_udp != null) return;
-            _udp = new UdpClient(new IPEndPoint(IPAddress.Any, _localRecvPort));
-            _cts = new CancellationTokenSource();
-            _rxLoop = Task.Run(() => RxLoopAsync(_cts.Token));
-            OnLog?.Invoke($"[Jd] listening on :{_localRecvPort}, remote={_remote}");
+
+            _udp = new UDPClient(_remoteHost, _remotePort, _localRecvPort, 2048);
+            _udp.onReceived += Udp_OnReceived;
+            _udp.onError += Udp_OnError;
+
+            OnLog += msg => System.Diagnostics.Debug.WriteLine(msg);
+            OnLog?.Invoke($"[Jd] listening on :{_localRecvPort}, remote={_remoteHost}:{_remotePort}");
         }
 
         public void Stop()
         {
-            try { _cts?.Cancel(); } catch { }
-            try { _udp?.Close(); } catch { }
+            if (_udp == null) return;
+            try
+            {
+                _udp.onReceived -= Udp_OnReceived;
+                _udp.onError -= Udp_OnError;
+                _udp.CleanUp();
+            }
+            catch { }
             _udp = null;
             OnLog?.Invoke("[Jd] stopped");
         }
 
         public void Dispose() => Stop();
 
+        // ------------------------------------------------------------------ 发送
+
         /// <summary>发送 上位机→PLC 20B 帧</summary>
         public void Send(JdTxFrame f)
         {
             if (_udp == null) throw new InvalidOperationException("JdUdpClient not started");
             byte[] buf = JdCodec.BuildTx(f);
-            _udp.Send(buf, buf.Length, _remote);
+            _udp.Send(buf);
         }
 
-        /// <summary>便捷方法：清除故障码</summary>
+        /// <summary>便捷：清除故障码</summary>
         public void SendClearFault() => Send(new JdTxFrame { ClearFault = JdConstants.CMD_RESET_FAULT });
 
-        /// <summary>便捷方法：操纵负荷复位回中立位（零位）</summary>
+        /// <summary>便捷：操纵负荷复位回中立位（零位）</summary>
         public void SendResetPedal() => Send(new JdTxFrame { ResetPedal = JdConstants.CMD_RESET_PEDAL_ZERO });
 
-        private async Task RxLoopAsync(CancellationToken ct)
+        // ------------------------------------------------------------------ 回调
+
+        private void Udp_OnReceived(object sender, UDPClient.ReceivedEventArgs e)
         {
-            while (!ct.IsCancellationRequested && _udp != null)
-            {
-                try
-                {
-                    // net472 无 ReceiveAsync(CancellationToken) 重载，用 Task.WhenAny 模拟
-                    var recvTask = _udp.ReceiveAsync();
-                    var cancelTask = Task.Delay(Timeout.Infinite, ct);
-                    var completed = await Task.WhenAny(recvTask, cancelTask).ConfigureAwait(false);
+            var frame = JdCodec.TryParseRx(e.MessageByte, out string err);
+            if (frame != null)
+                OnRx?.Invoke(frame);
+            else
+                OnRxError?.Invoke(err ?? "UNKNOWN", e.MessageByte);
+        }
 
-                    if (completed != recvTask) break;   // ct 取消，退出循环
-
-                    var res = recvTask.Result;
-                    var frame = JdCodec.TryParseRx(res.Buffer, out string err);
-                    if (frame != null) OnRx?.Invoke(frame);
-                    else OnRxError?.Invoke(err ?? "UNKNOWN", res.Buffer);
-                }
-                catch (OperationCanceledException) { break; }
-                catch (ObjectDisposedException) { break; }
-                catch (Exception ex)
-                {
-                    OnLog?.Invoke($"[Jd] rx ex: {ex.Message}");
-                }
-            }
+        private void Udp_OnError(object sender, UDPClient.ErrorEventArgs e)
+        {
+            OnLog?.Invoke($"[Jd] err: {e.Ex.Message}");
         }
     }
 }
