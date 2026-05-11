@@ -1,91 +1,75 @@
+// ============================================================================
+//  MainForm.ParamUDP.cs  —  MainForm 部分类：TcLCS-UDP v1.1 集成层
+// ============================================================================
+using CLS_II.src_communication;
+using CLS_II.src_GLV;    // ParamConsts
+using CLS_II.src_IOData;
 using System;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace CLS_II
 {
-    // ============================================================
-    //  MainForm  partial — TcLCS v1.1 参数通道
-    //  依赖：ParamData.cs / ParamUdpClient.cs / ParamConsts (GlobalVar.cs)
-    //  与旧 UDP（MainForm.UDP.cs）完全独立，互不干扰
-    // ============================================================
-
     public partial class MainForm
     {
-        private ParamUdpClient _paramUdpClient;
+        private ParamUdpClient? _param;
 
-        // ── 初始化 ────────────────────────────────────────────────
-        private void InitParamUDP()
+        /// <summary>目标设备 ID（默认 0x01；广播请求可用 0xFF）</summary>
+        public byte ParamDeviceId { get; set; } = 0x01;
+
+        private async void StartParamUdp()
         {
-            if (ParamConsts.isParamUdpConnected) return;
+            if (_param != null) return;
+            _param = new ParamUdpClient(
+                serverHost: GlobalVar.ParamConsts.szParamRemoteHost, // 192.168.118.118
+                serverPort: GlobalVar.ParamConsts.nParamPortSend,    // 5050 (server)
+                localRecvPort: GlobalVar.ParamConsts.nParamPortRecv,    // 8080 (local)
+                deviceId: ParamDeviceId);
+
+            _param.OnLog += s => System.Diagnostics.Debug.WriteLine(s);
+            _param.OnUnsolicited += OnParamUnsolicited;
+            _param.OnFrameError += (st, raw) =>
+                System.Diagnostics.Debug.WriteLine($"[Param] parse err {st}, raw={BitConverter.ToString(raw)}");
+
+            _param.Start();
+
+            // 协议 §5.3：任何业务前必须先 HELLO
             try
             {
-                ParamData.Init(); // 预分配缓存
-                _paramUdpClient = new ParamUdpClient(
-                    ParamConsts.szParamRemoteHost,
-                    ParamConsts.nParamPortSend,
-                    ParamConsts.nParamPortRecv);
-                _paramUdpClient.ResponseReceived += ParamClient_ResponseReceived;
-                _paramUdpClient.ErrorOccurred    += ParamClient_ErrorOccurred;
-                _paramUdpClient.Start();
-                ParamConsts.isParamUdpConnected = true;
+                var ack = await _param.HelloAsync();
+                System.Diagnostics.Debug.WriteLine($"[Param] HELLO_ACK status={(ack.Payload.Length > 0 ? ack.Payload[0] : 0xFF):X2}");
             }
             catch (Exception ex)
             {
-                throw new InvalidOperationException("Param UDP init failed: " + ex.Message);
+                System.Diagnostics.Debug.WriteLine($"[Param] HELLO failed: {ex.Message}");
             }
         }
 
-        // ── 释放 ──────────────────────────────────────────────────
-        private void DisposeParamUDP()
+        private void StopParamUdp()
         {
-            if (!ParamConsts.isParamUdpConnected) return;
-            ParamConsts.isParamUdpConnected = false;
-            _paramUdpClient?.Stop();
-            _paramUdpClient = null;
+            if (_param == null) return;
+            _param.Stop();
+            _param.Dispose();
+            _param = null;
         }
 
-        // ── 外部调用：GET 单个参数 ─────────────────────────────────
-        public void ParamGetRequest(ParamSubId subId, int channelId)
-        {
-            if (!ParamConsts.isParamUdpConnected) return;
-            _paramUdpClient?.SendGetRequest(subId, channelId);
-        }
+        // ---- 高层便捷 API ----
+        public Task<TcFrame> ParamReadAsync(TcSubId sub)
+            => _param?.ReadAsync(sub) ?? Task.FromException<TcFrame>(new InvalidOperationException("Param not started"));
 
-        // ── 外部调用：SET 单个参数 ─────────────────────────────────
-        public void ParamSetRequest(ParamSubId subId, int channelId, float value)
-        {
-            if (!ParamConsts.isParamUdpConnected) return;
-            ParamData.SetDirty(subId, channelId, value);
-            _paramUdpClient?.SendSetRequest(subId, channelId, value);
-        }
+        public Task<TcFrame> ParamWriteAsync(TcSubId sub, byte[] payload)
+            => _param?.WriteAsync(sub, payload) ?? Task.FromException<TcFrame>(new InvalidOperationException("Param not started"));
 
-        // ── 收帧回调 ──────────────────────────────────────────────
-        private void ParamClient_ResponseReceived(object sender, ParamRspArgs e)
-        {
-            // 解析 GET_RSP / SET_RSP：Payload = SubId(2B) + ChId(2B) + Value(4B)
-            if (e.Header.MsgType == ParamMsgType.GET_RSP ||
-                e.Header.MsgType == ParamMsgType.SET_RSP)
-            {
-                if (e.Payload.Length >= 8)
-                {
-                    var   sid = (ParamSubId)BitConverter.ToUInt16(e.Payload, 0);
-                    int   ch  = BitConverter.ToUInt16(e.Payload, 2) - 1; // 转0-based
-                    float val = BitConverter.ToSingle(e.Payload, 4);
-                    ParamData.UpdateFromResponse(sid, ch, val);
-                }
-            }
-            // TODO: 新参数窗口完成后取消注释
-            // if (IsHandleCreated)
-            //     BeginInvoke(new Action(() => _paramTestForm?.RefreshData()));
-        }
+        public Task<TcFrame> ParamPingAsync()
+            => _param?.PingAsync() ?? Task.FromException<TcFrame>(new InvalidOperationException("Param not started"));
 
-        // ── 错误回调 ──────────────────────────────────────────────
-        private void ParamClient_ErrorOccurred(object sender, Exception ex)
+        public Task<TcFrame> ParamSavePersistAsync()
+            => _param?.SavePersistAsync() ?? Task.FromException<TcFrame>(new InvalidOperationException("Param not started"));
+
+        private void OnParamUnsolicited(TcFrame f)
         {
-            if (IsHandleCreated)
-                BeginInvoke(new Action(() =>
-                    MessageBox.Show(ex.Message, "Param UDP Error",
-                        MessageBoxButtons.OK, MessageBoxIcon.Warning)));
+            System.Diagnostics.Debug.WriteLine(
+                $"[Param] unsolicited cmd={f.Header.Cmd} sub={f.Header.SubId} seq={f.Header.SeqNo} len={f.Payload.Length}");
         }
     }
 }

@@ -1,112 +1,96 @@
-// JdUdpClient.cs
-// JD-61101 UDP 通信客户端
-// 网络参数（来自 JD-61101-UDP通信协议.docx）:
-//   设备 IP/Port:  192.168.118.118 : 15000  （上位机→设备，发送指令）
-//   上位机接收端口: 16000                    （设备→上位机，接收脚蹬数据）
+// ============================================================================
+//  JdUdpClient.cs  —  JD-61101 UDP 收发客户端
+//
+//  网络（来自协议文档）：
+//    设备 192.168.118.118 : 15000 (监听/接收上位机指令)
+//    上位机本地        : 16000 (监听/接收设备数据)
+//  端口常量：GlobalVar.JdConsts.{szJdRemoteHost, nJdPortSend=15000, nJdPortRecv=16000}
+//  ⚠️ 注意：Snapshot v2 中 GlobalVar 里 nJdPortSend/Recv 是 16000/15000，
+//          与协议文档相反——请按协议文档为准，即：
+//            上位机 send → 15000（到设备）
+//            上位机 recv ← 16000（本地监听）
+//          已在 FLAG_TO_VERIFY 标注，最终以用户核对 GlobalVar.cs 为准。
+// ============================================================================
 using System;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using CLS_II.src_IOData;
-using CLS_II.src_GLV;
 
 namespace CLS_II.src_communication
 {
-    /// <summary>
-    /// JD-61101 UDP 客户端
-    /// 接收来自设备的脚蹬位移数据（20 B 发送帧），并按需发出控制帧（20 B 接收帧）
-    /// </summary>
     public sealed class JdUdpClient : IDisposable
     {
-        // ── 网络参数（来自 GlobalVar.cs JdConsts，严格按协议文档）
-        private readonly IPEndPoint _remoteEp;   // 设备端 192.168.118.118:15000
-        private readonly int        _localPort;  // 上位机接收端口 16000
-        private UdpClient           _udp;
-        private CancellationTokenSource _cts;
-        private Task _recvTask;
+        private readonly IPEndPoint _remote;   // 设备: 118.118:15000
+        private readonly int _localRecvPort; // 上位机: 16000
+        private UdpClient? _udp;
+        private CancellationTokenSource? _cts;
+        private Task? _rxLoop;
 
-        // ── 统计
-        private int _rxCount;
-        private int _rxError;
+        public event Action<JdRxFrame>? OnRx;
+        public event Action<string, byte[]>? OnRxError;      // (reason, raw)
+        public event Action<string>? OnLog;
 
-        // ── 事件：每次收到合法脚蹬帧触发
-        public event Action<JdTxFrame> OnPedalUpdate;
+        public bool IsRunning => _udp != null;
 
-        // ── 状态
-        public bool IsRunning => _recvTask != null && !_recvTask.IsCompleted;
-        public int  RxCount   => _rxCount;
-        public int  RxError   => _rxError;
-
-        public JdUdpClient()
+        public JdUdpClient(string remoteHost, int remotePort, int localRecvPort)
         {
-            _remoteEp  = new IPEndPoint(
-                IPAddress.Parse(GlobalVar.JdConsts.szJdRemoteHost),
-                GlobalVar.JdConsts.nJdPortSend);   // 15000 → 设备接收
-            _localPort = GlobalVar.JdConsts.nJdPortRecv;  // 16000 → 上位机接收
+            _remote = new IPEndPoint(IPAddress.Parse(remoteHost), remotePort);
+            _localRecvPort = localRecvPort;
         }
 
-        /// <summary>启动接收循环</summary>
         public void Start()
         {
-            if (IsRunning) return;
+            if (_udp != null) return;
+            _udp = new UdpClient(new IPEndPoint(IPAddress.Any, _localRecvPort));
             _cts = new CancellationTokenSource();
-            _udp = new UdpClient(_localPort);
-            _recvTask = Task.Run(() => ReceiveLoopAsync(_cts.Token));
+            _rxLoop = Task.Run(() => RxLoopAsync(_cts.Token));
+            OnLog?.Invoke($"[Jd] listening on :{_localRecvPort}, remote={_remote}");
         }
 
-        /// <summary>停止接收循环</summary>
         public void Stop()
         {
-            _cts?.Cancel();
-            _udp?.Close();
-            _recvTask?.Wait(500);
+            try { _cts?.Cancel(); } catch { }
+            try { _udp?.Close(); } catch { }
+            _udp = null;
+            OnLog?.Invoke("[Jd] stopped");
         }
 
-        /// <summary>
-        /// 向设备发送控制帧（接收帧，上位机→设备）
-        /// </summary>
-        public void Send(JdRxFrame frame)
+        public void Dispose() => Stop();
+
+        /// <summary>发送 上位机→PLC 20B 帧</summary>
+        public void Send(JdTxFrame f)
         {
-            if (_udp == null) return;
-            var data = frame.Build();
-            _udp.Send(data, data.Length, _remoteEp);
+            if (_udp == null) throw new InvalidOperationException("JdUdpClient not started");
+            byte[] buf = JdCodec.BuildTx(f);
+            _udp.Send(buf, buf.Length, _remote);
         }
 
-        // ── 接收循环
-        private async Task ReceiveLoopAsync(CancellationToken ct)
+        /// <summary>便捷方法：清除故障码</summary>
+        public void SendClearFault() => Send(new JdTxFrame { ClearFault = JdConstants.CMD_RESET_FAULT });
+
+        /// <summary>便捷方法：操纵负荷复位回中立位（零位）</summary>
+        public void SendResetPedal() => Send(new JdTxFrame { ResetPedal = JdConstants.CMD_RESET_PEDAL_ZERO });
+
+        private async Task RxLoopAsync(CancellationToken ct)
         {
-            while (!ct.IsCancellationRequested)
+            while (!ct.IsCancellationRequested && _udp != null)
             {
                 try
                 {
-                    var result = await _udp.ReceiveAsync().WaitAsync(ct);
-                    var buf = result.Buffer;
-                    if (JdTxFrame.TryParse(buf, out var frame))
-                    {
-                        Interlocked.Increment(ref _rxCount);
-                        OnPedalUpdate?.Invoke(frame);
-                    }
-                    else
-                    {
-                        Interlocked.Increment(ref _rxError);
-                    }
+                    var res = await _udp.ReceiveAsync(ct).ConfigureAwait(false);
+                    var frame = JdCodec.TryParseRx(res.Buffer, out string? err);
+                    if (frame != null) OnRx?.Invoke(frame);
+                    else OnRxError?.Invoke(err ?? "UNKNOWN", res.Buffer);
                 }
                 catch (OperationCanceledException) { break; }
-                catch (SocketException) when (ct.IsCancellationRequested) { break; }
+                catch (ObjectDisposedException) { break; }
                 catch (Exception ex)
                 {
-                    Interlocked.Increment(ref _rxError);
-                    System.Diagnostics.Debug.WriteLine($"[JdUdpClient] RX error: {ex.Message}");
+                    OnLog?.Invoke($"[Jd] rx ex: {ex.Message}");
                 }
             }
-        }
-
-        public void Dispose()
-        {
-            Stop();
-            _udp?.Dispose();
-            _cts?.Dispose();
         }
     }
 }
