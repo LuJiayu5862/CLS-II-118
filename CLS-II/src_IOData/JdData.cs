@@ -14,7 +14,7 @@
 using System;
 using System.Buffers.Binary;
 
-namespace CLS_II.src_IOData
+namespace CLS_II
 {
     /// <summary>JD-61101 协议常量（来自协议文档原文）</summary>
     public static class JdConstants

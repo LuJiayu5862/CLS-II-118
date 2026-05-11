@@ -14,9 +14,8 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
-using CLS_II.src_IOData;
 
-namespace CLS_II.src_communication
+namespace CLS_II
 {
     public sealed class ParamUdpClient : IDisposable
     {
@@ -51,7 +50,7 @@ namespace CLS_II.src_communication
         {
             if (_udp != null) return;
             if (!Crc16Modbus.SelfTest())
-                OnLog?.Invoke("[Param] ⚠️ CRC16/MODBUS self-test FAILED (expected 0x0CD5)");
+                OnLog?.Invoke("[Param] ⚠️ CRC16/MODBUS self-test FAILED (expected 0xCDC5)");
 
             _udp = new UdpClient(new IPEndPoint(IPAddress.Any, _localRecvPort));
             _cts = new CancellationTokenSource();
@@ -133,7 +132,13 @@ namespace CLS_II.src_communication
                     cts.CancelAfter(TimeoutMs);
                     try
                     {
-                        var resp = await tcs.Task.WaitAsync(cts.Token).ConfigureAwait(false);
+                        var cancelTask = Task.Delay(Timeout.Infinite, cts.Token);
+                        var completed = await Task.WhenAny(tcs.Task, cancelTask).ConfigureAwait(false);
+
+                        if (completed != tcs.Task)          // 超时或取消
+                            throw new OperationCanceledException(cts.Token);
+
+                        var resp = tcs.Task.Result;         // 已完成，安全取值
                         Interlocked.Exchange(ref _consecutiveTimeouts, 0);
                         return resp;
                     }
@@ -164,7 +169,17 @@ namespace CLS_II.src_communication
             {
                 try
                 {
-                    var res = await _udp.ReceiveAsync(ct).ConfigureAwait(false);
+                    // net472 没有 ReceiveAsync(CancellationToken) 重载
+                    // 用 Task.WhenAny 模拟可取消的异步等待
+                    var recvTask = _udp.ReceiveAsync();
+                    var cancelTask = Task.Delay(Timeout.Infinite, ct);
+                    var completed = await Task.WhenAny(recvTask, cancelTask).ConfigureAwait(false);
+
+                    if (completed != recvTask)       // 取消信号先到
+                        break;
+
+                    var res = recvTask.Result;       // 已完成，安全取值
+
                     var f = TcCodec.TryParse(res.Buffer, out TcStatus err);
                     if (f == null) { OnFrameError?.Invoke(err, res.Buffer); continue; }
 

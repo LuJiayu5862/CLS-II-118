@@ -1,10 +1,11 @@
 // ============================================================================
 //  MainForm.ParamUDP.cs  —  MainForm 部分类：TcLCS-UDP v1.1 集成层
 // ============================================================================
-using CLS_II.src_communication;
-using CLS_II.src_GLV;    // ParamConsts
-using CLS_II.src_IOData;
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -21,9 +22,9 @@ namespace CLS_II
         {
             if (_param != null) return;
             _param = new ParamUdpClient(
-                serverHost: GlobalVar.ParamConsts.szParamRemoteHost, // 192.168.118.118
-                serverPort: GlobalVar.ParamConsts.nParamPortSend,    // 5050 (server)
-                localRecvPort: GlobalVar.ParamConsts.nParamPortRecv,    // 8080 (local)
+                serverHost: ParamConsts.szParamRemoteHost, // 192.168.118.118
+                serverPort: ParamConsts.nParamPortSend,    // 5050 (server)
+                localRecvPort: ParamConsts.nParamPortRecv,    // 8080 (local)
                 deviceId: ParamDeviceId);
 
             _param.OnLog += s => System.Diagnostics.Debug.WriteLine(s);

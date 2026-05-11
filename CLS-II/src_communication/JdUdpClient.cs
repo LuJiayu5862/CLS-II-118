@@ -16,9 +16,8 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
-using CLS_II.src_IOData;
 
-namespace CLS_II.src_communication
+namespace CLS_II
 {
     public sealed class JdUdpClient : IDisposable
     {
@@ -79,8 +78,15 @@ namespace CLS_II.src_communication
             {
                 try
                 {
-                    var res = await _udp.ReceiveAsync(ct).ConfigureAwait(false);
-                    var frame = JdCodec.TryParseRx(res.Buffer, out string? err);
+                    // net472 无 ReceiveAsync(CancellationToken) 重载，用 Task.WhenAny 模拟
+                    var recvTask = _udp.ReceiveAsync();
+                    var cancelTask = Task.Delay(Timeout.Infinite, ct);
+                    var completed = await Task.WhenAny(recvTask, cancelTask).ConfigureAwait(false);
+
+                    if (completed != recvTask) break;   // ct 取消，退出循环
+
+                    var res = recvTask.Result;
+                    var frame = JdCodec.TryParseRx(res.Buffer, out string err);
                     if (frame != null) OnRx?.Invoke(frame);
                     else OnRxError?.Invoke(err ?? "UNKNOWN", res.Buffer);
                 }

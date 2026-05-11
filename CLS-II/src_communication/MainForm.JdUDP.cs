@@ -1,10 +1,12 @@
 // ============================================================================
 //  MainForm.JdUDP.cs  —  MainForm 部分类：JD-61101 集成层
 // ============================================================================
-using CLS_II.src_communication;
-using CLS_II.;     // JdConsts
-using CLS_II.src_IOData;
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace CLS_II
@@ -20,9 +22,9 @@ namespace CLS_II
         {
             if (_jd != null) return;
             _jd = new JdUdpClient(
-                remoteHost: GlobalVar.JdConsts.szJdRemoteHost,
-                remotePort: GlobalVar.JdConsts.nJdPortSend,  // 到设备 15000
-                localRecvPort: GlobalVar.JdConsts.nJdPortRecv); // 本地 16000
+                remoteHost: JdConsts.szJdRemoteHost,
+                remotePort: JdConsts.nJdPortSend,  // 到设备 15000
+                localRecvPort: JdConsts.nJdPortRecv); // 本地 16000
 
             _jd.OnRx += OnJdRx;
             _jd.OnRxError += OnJdRxError;

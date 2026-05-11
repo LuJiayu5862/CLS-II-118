@@ -11,8 +11,14 @@
 // ============================================================================
 using System;
 using System.Buffers.Binary;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Threading.Tasks;
 
-namespace CLS_II.src_IOData
+namespace CLS_II
 {
     public static class TcLcsConstants
     {
@@ -132,7 +138,7 @@ namespace CLS_II.src_IOData
     /// <summary>完整帧（Header + Payload）— Trailer 由 Codec 构建/校验</summary>
     public sealed class TcFrame
     {
-        public TcFrameHeader Header { get; set; } = new();
+        public TcFrameHeader Header { get; set; } = new TcFrameHeader();
         public byte[] Payload { get; set; } = Array.Empty<byte>();
     }
 
@@ -158,11 +164,11 @@ namespace CLS_II.src_IOData
             return crc;
         }
 
-        /// <summary>文档自检：0x01 0x03 0x00 0x00 0x00 0x0A → 0x0CD5</summary>
+        /// <summary>文档自检：0x01 0x03 0x00 0x00 0x00 0x0A → 0xCDC5</summary>
         public static bool SelfTest()
         {
             ReadOnlySpan<byte> v = new byte[] { 0x01, 0x03, 0x00, 0x00, 0x00, 0x0A };
-            return Compute(v) == 0x0CD5;
+            return Compute(v) == 0xCDC5;
         }
     }
 
