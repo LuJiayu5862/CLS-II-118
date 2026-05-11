@@ -686,5 +686,283 @@ namespace CLS_II
             }
             return bytes;
         }
+
+        // 以下测试完成后删除
+        // ============================================================================
+        //  放在你的 Form 类中（MainForm 或对应窗体）
+        // ============================================================================
+
+        // ── 读取按钮状态 ──────────────────────────────────────────────────────────
+        private static int _readIndex = 0;  // 当前读取到第几组
+        private static ushort _seqNo = 0;
+        private static readonly string[] _readOrder = new[]
+        {
+    "CLSModel", "CLSParam", "CLS5K", "CLSConsts", "TestMDL",
+    "CLSEnum", "XT", "YT", "DeviceInfo", "UdpDataCfg", "UdpParamCfg",
+    "TcLCS_CtrlIn", "TcLCS_CtrlOut"
+};
+
+        // ── CLS5K 按钮状态 ────────────────────────────────────────────────────────
+        private bool _cls5kIsZeroed = false;  // true=当前已清零，false=原始值
+        private ST_CLS5K _cls5kBackup = new ST_CLS5K();  // 备份原始值
+
+        // =============================================================================
+        //  读取按钮回调
+        //  每按一次：发送 READ_REQ → 等待 READ_ACK → TryDeserialize → MessageBox 显示
+        // =============================================================================
+        private async void btnReadNext_Click(object sender, EventArgs e)
+        {
+            if (_readIndex >= _readOrder.Length)
+            {
+                MessageBox.Show("所有参数组已全部读取完毕！", "读取完成",
+                                MessageBoxButtons.OK, MessageBoxIcon.Information);
+                _readIndex = 0;
+                return;
+            }
+
+            string groupName = _readOrder[_readIndex];
+            TcSubId subId = GroupNameToSubId(groupName);
+
+            TcFrame ack;
+            try
+            {
+                ack = await ParamReadAsync(subId);  // ← 就这一行，搞定收发
+            }
+            catch (TimeoutException)
+            {
+                MessageBox.Show($"读取 {groupName} 超时，请检查连接。", groupName,
+                                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (IsErrFrame(ack, groupName))
+            {
+                MessageBox.Show($"{groupName} 返回错误帧。", groupName,
+                                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            ParamData.TryDeserialize(ack);  // ← 解析存入全局变量
+
+            string display = FormatGroupDisplay(groupName);
+            MessageBox.Show(display, groupName, MessageBoxButtons.OK, MessageBoxIcon.None);
+
+            _readIndex++;
+            if (_readIndex >= _readOrder.Length)
+            {
+                MessageBox.Show("✅ 所有参数组已全部读取完毕！", "读取完成",
+                                MessageBoxButtons.OK, MessageBoxIcon.Information);
+                _readIndex = 0;
+            }
+        }
+
+        // =============================================================================
+        //  CLS5K 按钮回调
+        //  红色状态（已清零）→ 绿色（写回原始值）
+        //  绿色状态（原始值）→ 红色（写零）
+        // =============================================================================
+        private async void btnCLS5K_Click(object sender, EventArgs e)
+        {
+            Button btn = (Button)sender;
+
+            if (!_cls5kIsZeroed)
+            {
+                // ── 当前是原始值 → 备份 → 写零 → 按钮变红 ──────────────────────
+                lock (ParamData.LockCLS5K)
+                    _cls5kBackup = ParamData.CLS_5K;  // 备份
+
+                // 全部写零
+                ST_CLS5K zero = new ST_CLS5K();  // 所有 double 默认 0.0
+                lock (ParamData.LockCLS5K)
+                    ParamData.CLS_5K = zero;
+
+                bool ok = await WriteCLS5KAsync(ParamData.CLS_5K);
+                if (!ok)
+                {
+                    MessageBox.Show("写入失败，请检查连接。", "CLS5K Write",
+                                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    lock (ParamData.LockCLS5K)
+                        ParamData.CLS_5K = _cls5kBackup;  // 写失败则还原内存
+                    return;
+                }
+
+                btn.BackColor = Color.Red;
+                btn.Text = "CLS5K（已清零）\r\n点击恢复";
+                _cls5kIsZeroed = true;
+                MessageBox.Show("CLS5K 已全部写零。", "CLS5K Write",
+                                MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            else
+            {
+                // ── 当前是清零状态 → 写回备份 → 按钮变绿 ────────────────────────
+                lock (ParamData.LockCLS5K)
+                    ParamData.CLS_5K = _cls5kBackup;
+
+                bool ok = await WriteCLS5KAsync(ParamData.CLS_5K);
+                if (!ok)
+                {
+                    MessageBox.Show("写入失败，请检查连接。", "CLS5K Restore",
+                                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                btn.BackColor = Color.LimeGreen;
+                btn.Text = "CLS5K（已恢复）\r\n点击清零";
+                _cls5kIsZeroed = false;
+                MessageBox.Show("CLS5K 已恢复原始参数。", "CLS5K Restore",
+                                MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+
+        // =============================================================================
+        //  辅助：发送 CLS5K WRITE_REQ 并等待 WRITE_ACK
+        // =============================================================================
+        private async Task<bool> WriteCLS5KAsync(ST_CLS5K data)
+        {
+            try
+            {
+                byte[] payload = ParamData.Serialize(data);
+                TcFrame ack = await ParamWriteAsync(TcSubId.CLS5K, payload);  // ← 就这一行
+                return !IsErrFrame(ack, "WriteCLS5K");
+            }
+            catch (TimeoutException)
+            {
+                return false;
+            }
+        }
+
+        // =============================================================================
+        //  辅助：SubID 名 → 枚举
+        // =============================================================================
+        private static TcSubId GroupNameToSubId(string name) => name switch
+        {
+            "CLSModel" => TcSubId.CLSModel,
+            "CLSParam" => TcSubId.CLSParam,
+            "CLS5K" => TcSubId.CLS5K,
+            "CLSConsts" => TcSubId.CLSConsts,
+            "TestMDL" => TcSubId.TestMDL,
+            "CLSEnum" => TcSubId.CLSEnum,
+            "XT" => TcSubId.XT,
+            "YT" => TcSubId.YT,
+            "DeviceInfo" => TcSubId.DeviceInfo,
+            "UdpDataCfg" => TcSubId.UdpDataCfg,
+            "UdpParamCfg" => TcSubId.UdpParamCfg,
+            "TcLCS_CtrlIn" => TcSubId.TcLCS_CtrlIn,
+            "TcLCS_CtrlOut" => TcSubId.TcLCS_CtrlOut,
+            _ => throw new ArgumentException($"Unknown group: {name}")
+        };
+
+        // =============================================================================
+        //  辅助：将全局变量格式化为弹窗显示字符串
+        // =============================================================================
+        private static string FormatGroupDisplay(string name)
+        {
+            switch (name)
+            {
+                case "CLSModel":
+                    var m = ParamData.CLS_Model;
+                    return $"bA={m.bA:F4}  bF={m.bF:F4}  bH={m.bH:F4}  bS={m.bS:F4}\n" +
+                           $"kS={m.kS:F4}  kH={m.kH:F4}  kHV={m.kHV:F4}  kSV={m.kSV:F4}\n" +
+                           $"kQ={m.kQ:F4}  kU={m.kU:F4}  mA={m.mA:F4}  mF={m.mF:F4}\n" +
+                           $"Vbrk={m.Vbrk:F4}  Xbrk={m.Xbrk:F4}  FcA={m.FcA:F4}  FcF={m.FcF:F4}\n" +
+                           $"bFA={m.bFA:F4}  dzF={m.dzF:F4}\n" +
+                           $"NFC_P={m.NFC_P:F4}  NFC_I={m.NFC_I:F4}  NFC_D={m.NFC_D:F4}  NFC_N={m.NFC_N:F4}";
+
+                case "CLSParam":
+                    var p = ParamData.CLS_Param;
+                    return $"AutoHoming={p.AutoHoming}\n" +
+                           $"VPos={p.VPos:F4}  Jagment={p.Jagment:F4}  JagmentP={p.JagmentP:F4}  JagmentN={p.JagmentN:F4}\n" +
+                           $"P0Home={p.P0Home:F4}  Foffset={p.Foffset:F4}  Fzero={p.Fzero:F4}  F0Aoff={p.F0Aoff:F4}\n" +
+                           $"Poffset={p.Poffset:F4}  P0Trim={p.P0Trim:F4}  L0Trim={p.L0Trim:F4}\n" +
+                           $"L0TravA={p.L0TravA:F4}  L0TravB={p.L0TravB:F4}\n" +
+                           $"ShakerA={p.ShakerA:F4}  ShakerF={p.ShakerF:F4}  VT1={p.VT1:F4}  VT2={p.VT2:F4}";
+
+                case "CLS5K":
+                    var k = ParamData.CLS_5K;
+                    return $"K0={k.K0:F4}  K1={k.K1:F4}  K2={k.K2:F4}\n" +
+                           $"K3={k.K3:F4}  K4={k.K4:F4}  K5={k.K5:F4}\n" +
+                           $"X0={k.X0:F4}  X1={k.X1:F4}  X2={k.X2:F4}\n" +
+                           $"X3={k.X3:F4}  X4={k.X4:F4}  X5={k.X5:F4}\n" +
+                           $"X6={k.X6:F4}  Ke={k.Ke:F4}";
+
+                case "CLSConsts":
+                    var c = ParamData.CLS_Consts;
+                    return $"KUSEDEG={c.KUSEDEG}  CCWDIR={c.CCWDIR}  KFLMT={c.KFLMT}\n" +
+                           $"KFmax={c.KFmax:F4}  KVmax={c.KVmax:F4}  Larm={c.Larm:F4}\n" +
+                           $"KPR={c.KPR:F4}  KFR={c.KFR:F4}  KX2P={c.KX2P:F4}\n" +
+                           $"KForceTo={c.KForceTo:F4}  KVelTo={c.KVelTo:F4}  KPosTo={c.KPosTo:F4}\n" +
+                           $"KF2N={c.KF2N:F4}  KV2DPS={c.KV2DPS:F4}  KP2DEG={c.KP2DEG:F4}";
+
+                case "TestMDL":
+                    var t = ParamData.Test_MDL;
+                    return $"Km={t.Km:F4}  Ks={t.Ks:F4}  Kp={t.Kp:F4}\n" +
+                           $"Ka={t.Ka:F4}  Kq={t.Kq:F4}  bs={t.bs:F4}\n" +
+                           $"bA={t.bA:F4}  Ksf={t.Ksf:F4}  bsf={t.bsf:F4}\n" +
+                           $"DL={t.DL:F4}  PL={t.PL:F4}";
+
+                case "CLSEnum":
+                    var en = ParamData.CLS_Enum;
+                    return $"DM_PP={en.DM_PP}  DM_PV={en.DM_PV}  DM_PT={en.DM_PT}  DM_HM={en.DM_HM}\n" +
+                           $"DM_IP={en.DM_IP}  DM_CSP={en.DM_CSP}  DM_CSV={en.DM_CSV}  DM_CST={en.DM_CST}\n" +
+                           $"STU_KQS={en.STU_KQS}\n" +
+                           $"STU_FAULT={en.STU_FAULT}  STU_STOP={en.STU_STOP}  STU_NORDY={en.STU_NORDY}\n" +
+                           $"STU_OPR={en.STU_OPR}  STU_HOMED={en.STU_HOMED}\n" +
+                           $"DRV_SHUTDWN={en.DRV_SHUTDWN}  DRV_ENABLE={en.DRV_ENABLE}  DRV_RESET={en.DRV_RESET}\n" +
+                           $"SW_FCW={en.SW_FCW}";
+
+                case "XT":
+                    var xt = ParamData.Param_XT;
+                    var sbXT = new StringBuilder("aXT:\n");
+                    for (int i = 0; i < 21; i++)
+                        sbXT.Append($"[{i:D2}]={xt.aXT[i]:F4}  " + (i % 4 == 3 ? "\n" : ""));
+                    return sbXT.ToString();
+
+                case "YT":
+                    var yt = ParamData.Param_YT;
+                    var sbYT = new StringBuilder("aYT:\n");
+                    for (int i = 0; i < 21; i++)
+                        sbYT.Append($"[{i:D2}]={yt.aYT[i]:F4}  " + (i % 4 == 3 ? "\n" : ""));
+                    return sbYT.ToString();
+
+                case "DeviceInfo":
+                    var d = ParamData.Device_Info;
+                    return $"ID={d.ID}\nPosN={d.PosN:F4}\nPOSP={d.POSP:F4}\nTestMode={d.TestMode}";
+
+                case "UdpDataCfg":
+                    var ud = ParamData.UdpData_Cfg;
+                    return $"LocalIP={ud.GetLocalIP()}  LocalPort={ud.LocalPort}\n" +
+                           $"RemoteIP={ud.GetRemoteIP()}  RemotePort={ud.RemotePort}\n" +
+                           $"bPeriodical={ud.bPeriodical}  Period={ud.Period}";
+
+                case "UdpParamCfg":
+                    var up = ParamData.UdpParam_Cfg;
+                    return $"LocalIP={up.GetLocalIP()}  LocalPort={up.LocalPort}\n" +
+                           $"RemoteIP={up.GetRemoteIP()}  RemotePort={up.RemotePort}\n" +
+                           $"bPeriodical={up.bPeriodical}  Period={up.Period}";
+
+                case "TcLCS_CtrlIn":
+                    var u = ParamData.CtrlIn;
+                    return $"CtrlCmd={u.CtrlCmd}  FnSwitch={u.FnSwitch}\n" +
+                           $"fwdFric={u.fwdFric:F4}  jamPos={u.jamPos:F4}\n" +
+                           $"TravA={u.TravA:F4}  TravB={u.TravB:F4}\n" +
+                           $"fwdMassD={u.fwdMassD:F4}  fwdDampD={u.fwdDampD:F4}\n" +
+                           $"FInput={u.FInput:F4}  Vap={u.Vap:F4}\n" +
+                           $"VTrim={u.VTrim:F4}  FaOffset={u.FaOffset:F4}\n" +
+                           $"FaGrad={u.FaGrad:F4}  trimInitP={u.trimInitP:F4}\n" +
+                           $"Spare1={u.Spare1:F4}  Spare2={u.Spare2:F4}  Spare3={u.Spare3:F4}";
+
+                case "TcLCS_CtrlOut":
+                    var y = ParamData.CtrlOut;
+                    return $"state={y.state}  safety={y.safety}  isFading={y.isFading}\n" +
+                           $"fwdPosition={y.fwdPosition:F4}  fwdVelocity={y.fwdVelocity:F4}\n" +
+                           $"fwdForce={y.fwdForce:F4}  cableForce={y.cableForce:F4}\n" +
+                           $"trimPosition={y.trimPosition:F4}  aftPosition={y.aftPosition:F4}\n" +
+                           $"motorPosition={y.motorPosition:F4}  motorVelocity={y.motorVelocity:F4}\n" +
+                           $"sensorForce={y.sensorForce:F4}  commandForce={y.commandForce:F4}";
+
+                default:
+                    return "(无数据)";
+            }
+        }
     }
 }
