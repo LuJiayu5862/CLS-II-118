@@ -1,13 +1,14 @@
-﻿using System;
+﻿using MmTimer;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
+using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using MmTimer;
 
 namespace CLS_II
 {
@@ -642,6 +643,48 @@ namespace CLS_II
                         treeView1.SelectedNode = treeView1.Nodes[0];
                 }
             }
+        }
+
+        private async void button1_Click(object sender, EventArgs e)
+        {
+            if (ParamUdpClient.Instance == null)
+            {
+                Debug.WriteLine("[Param] not connected");
+                return;
+            }
+
+            try
+            {
+                TcFrame resp = await ParamPingAsync();
+
+                // PONG 帧：Payload 为空（PayloadLen = 0），只需确认 CMD 是 PONG 即可
+                if (resp.Header.Cmd == TcCmd.PONG)
+                {
+                    byte[] bytes = GetBytes(resp.Payload, 0, 4);
+                    uint time = BitConverter.ToUInt32(bytes, 0);
+                    Debug.WriteLine($"[Param] PONG ok ✅  seq={resp.Header.SeqNo}  payloadLen={resp.Header.PayloadLen} payload={time}");
+                }
+                else
+                {
+                    // 如果主站回了 ERR 帧，Payload[0] 是 TcStatus 错误码
+                    TcStatus errCode = resp.Payload.Length > 0
+                        ? (TcStatus)resp.Payload[0]
+                        : TcStatus.INTERNAL;
+                    Debug.WriteLine($"[Param] PING got unexpected CMD={resp.Header.Cmd}  err={errCode}");
+                }
+            }
+            catch (TimeoutException) { Debug.WriteLine("[Param] PING timeout"); }
+            catch (Exception ex) { Debug.WriteLine($"[Param] PING error: {ex.Message}"); }
+        }
+
+        private byte[] GetBytes(byte[] payload, int v1, int v2)
+        {
+            byte[] bytes = new byte[v2];
+            for(int i=0;i<v2;i++)
+            {
+                bytes[i] = payload[i+v1];
+            }
+            return bytes;
         }
     }
 }

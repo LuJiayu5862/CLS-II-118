@@ -198,7 +198,7 @@ namespace CLS_II
             }
         }
 
-        private void ConnectDevice()
+        private async void ConnectDevice()
         {
             if (!GlobalVar.isUdpConnceted)
             {
@@ -206,10 +206,14 @@ namespace CLS_II
                 {
                     SetDefaultRemoteHost(GlobalVar.szRemoteHost, GlobalVar.nPortIn, GlobalVar.nPortOut1, GlobalVar.nPortOut2);
                     InitUDP();
+
                     JdUdpClient.StartInstance(
                         JdConsts.szJdRemoteHost,
                         JdConsts.nJdPortSend,
                         JdConsts.nJdPortRecv);
+
+                    await StartParamUdpAsync();
+
                     GlobalVar.isUdpConnceted = true;
                     udpStateToolStripStatusLabel.Text = GlobalVar.szRemoteHost;
                 }
@@ -242,9 +246,12 @@ namespace CLS_II
             GlobalVar.isSendUdp = false;
             if (GlobalVar.isUdpConnceted)
             {
-                DisposeUDP();
                 GlobalVar.isUdpConnceted = false;
+
+                StopParamUdp();
                 JdUdpClient.StopInstance();
+                DisposeUDP();
+                
                 udpStateToolStripStatusLabel.Text = string.Empty;
             }
             if (MultiLanguage.DefaultLanguage == "zh")

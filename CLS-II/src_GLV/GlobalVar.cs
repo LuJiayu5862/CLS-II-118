@@ -90,5 +90,6 @@ namespace CLS_II
         public static string szParamRemoteHost   = "192.168.118.118";
         public static int    nParamPortSend      = 5050;  // PC → 控制器
         public static int    nParamPortRecv      = 8080;  // 控制器 → PC
+        public static byte   byParamDeviceId     = 0x01;  // 设备号  
     }
 }

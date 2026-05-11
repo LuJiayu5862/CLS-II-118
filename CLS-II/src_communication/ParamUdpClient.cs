@@ -1,5 +1,5 @@
 // ============================================================================
-//  ParamUdpClient.cs  —  TcLCS-UDP v1.1 客户端（Request/Response）
+//  ParamUdpClient.cs  —  TcLCS-UDP v1.1 客户端（Request/Response，单例）
 //
 //  依据：TcLCS-UDP_Protocol_v1.1.docx §5 / §9
 //    - SeqNo 匹配：ConcurrentDictionary<ushort, TaskCompletionSource<TcFrame>>
@@ -7,6 +7,9 @@
 //    - 连续 3 次超时 → 重发 HELLO，清空服务端幂等缓存
 //    - 启动时必须先 HELLO
 //    - WRITE_REQ 的 SeqNo 跳过 0 并严格递增
+//
+//  2026-05-11：仿照 JdUdpClient 改为单例，生命周期由
+//              ConnectDevice() / DisconnectDevice() 统一管理。
 // ============================================================================
 using System;
 using System.Collections.Concurrent;
@@ -19,34 +22,72 @@ namespace CLS_II
 {
     public sealed class ParamUdpClient : IDisposable
     {
-        private readonly IPEndPoint _server;     // 主站 192.168.118.118 : 5050
-        private readonly int _localRecvPort; // 上位机 8080
-        private readonly byte _deviceId;    // 目标设备 ID，广播用 0xFF
+        // ===== 单例 =====
+        private static ParamUdpClient _instance;
+        private static readonly object _instanceLock = new object();
+
+        /// <summary>当前运行的单例，未启动时为 null。</summary>
+        public static ParamUdpClient Instance => _instance;
+
+        /// <summary>
+        /// 创建并启动单例（幂等）。仅在 ConnectDevice() 中调用一次。
+        /// </summary>
+        public static ParamUdpClient StartInstance(string serverHost, int serverPort,
+                                                   int localRecvPort, byte deviceId)
+        {
+            lock (_instanceLock)
+            {
+                if (_instance != null) return _instance;
+                var c = new ParamUdpClient(serverHost, serverPort, localRecvPort, deviceId);
+                c.Start();
+                _instance = c;
+                return _instance;
+            }
+        }
+
+        /// <summary>
+        /// 停止并释放单例。仅在 DisconnectDevice() 中调用。
+        /// </summary>
+        public static void StopInstance()
+        {
+            lock (_instanceLock)
+            {
+                if (_instance == null) return;
+                try { _instance.Dispose(); } catch { }
+                _instance = null;
+            }
+        }
+
+        // ===== 实例字段 =====
+        private readonly IPEndPoint _server;
+        private readonly int _localRecvPort;
+        private readonly byte _deviceId;
 
         private UdpClient _udp;
         private CancellationTokenSource _cts;
         private Task _rxLoop;
 
-        private readonly ConcurrentDictionary<ushort, TaskCompletionSource<TcFrame>> _pending = new();
-        private int _seq;                // 递增源（跳过 0）
+        private readonly ConcurrentDictionary<ushort, TaskCompletionSource<TcFrame>> _pending
+            = new ConcurrentDictionary<ushort, TaskCompletionSource<TcFrame>>();
+        private int _seq;
         private int _consecutiveTimeouts;
 
         public event Action<string> OnLog;
-        public event Action<TcFrame> OnUnsolicited; // 无匹配 SeqNo 的帧
+        public event Action<TcFrame> OnUnsolicited;
         public event Action<TcStatus, byte[]> OnFrameError;
 
         public int TimeoutMs { get; set; } = 300;
         public int MaxRetries { get; set; } = 3;
         public bool IsRunning => _udp != null;
 
-        public ParamUdpClient(string serverHost, int serverPort, int localRecvPort, byte deviceId)
+        private ParamUdpClient(string serverHost, int serverPort, int localRecvPort, byte deviceId)
         {
             _server = new IPEndPoint(IPAddress.Parse(serverHost), serverPort);
             _localRecvPort = localRecvPort;
             _deviceId = deviceId;
         }
 
-        public void Start()
+        private void Start()
         {
             if (_udp != null) return;
             if (!Crc16Modbus.SelfTest())
@@ -58,7 +99,7 @@ namespace CLS_II
             OnLog?.Invoke($"[Param] listening :{_localRecvPort}, server={_server}");
         }
 
-        public void Stop()
+        private void Stop()
         {
             try { _cts?.Cancel(); } catch { }
             try { _udp?.Close(); } catch { }
@@ -72,7 +113,6 @@ namespace CLS_II
 
         private ushort NextSeq()
         {
-            // 递增并跳过 0
             while (true)
             {
                 int n = Interlocked.Increment(ref _seq) & 0xFFFF;
@@ -108,11 +148,10 @@ namespace CLS_II
         public Task<TcFrame> SavePersistAsync(CancellationToken ct = default)
             => RequestAsync(TcCmd.SAVE_PERSIST, TcSubId.ALL, ReadOnlyMemory<byte>.Empty, ct: ct);
 
-        /// <summary>核心请求/响应：超时 300ms，最多 MaxRetries 次，超限 3 次连续失败后触发 HELLO 恢复</summary>
         private async Task<TcFrame> RequestAsync(TcCmd cmd, TcSubId sub,
-                                                 ReadOnlyMemory<byte> payload,
-                                                 ushort? seqOverride = null,
-                                                 CancellationToken ct = default)
+                                                  ReadOnlyMemory<byte> payload,
+                                                  ushort? seqOverride = null,
+                                                  CancellationToken ct = default)
         {
             if (_udp == null) throw new InvalidOperationException("ParamUdpClient not started");
 
@@ -128,17 +167,17 @@ namespace CLS_II
                 {
                     await _udp.SendAsync(frame, frame.Length, _server).ConfigureAwait(false);
 
-                    using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                    cts.CancelAfter(TimeoutMs);
+                    using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                    linkedCts.CancelAfter(TimeoutMs);
                     try
                     {
-                        var cancelTask = Task.Delay(Timeout.Infinite, cts.Token);
+                        var cancelTask = Task.Delay(Timeout.Infinite, linkedCts.Token);
                         var completed = await Task.WhenAny(tcs.Task, cancelTask).ConfigureAwait(false);
 
-                        if (completed != tcs.Task)          // 超时或取消
-                            throw new OperationCanceledException(cts.Token);
+                        if (completed != tcs.Task)
+                            throw new OperationCanceledException(linkedCts.Token);
 
-                        var resp = tcs.Task.Result;         // 已完成，安全取值
+                        var resp = tcs.Task.Result;
                         Interlocked.Exchange(ref _consecutiveTimeouts, 0);
                         return resp;
                     }
@@ -153,7 +192,7 @@ namespace CLS_II
                 {
                     OnLog?.Invoke("[Param] 3 consecutive timeouts → HELLO recovery");
                     Interlocked.Exchange(ref _consecutiveTimeouts, 0);
-                    try { _ = await HelloAsync(ct).ConfigureAwait(false); } catch { /* swallow */ }
+                    try { _ = await HelloAsync(ct).ConfigureAwait(false); } catch { }
                 }
                 throw new TimeoutException($"TcLCS request timeout: cmd={cmd} sub={sub} seq={seq}");
             }
@@ -169,25 +208,18 @@ namespace CLS_II
             {
                 try
                 {
-                    // net472 没有 ReceiveAsync(CancellationToken) 重载
-                    // 用 Task.WhenAny 模拟可取消的异步等待
                     var recvTask = _udp.ReceiveAsync();
                     var cancelTask = Task.Delay(Timeout.Infinite, ct);
                     var completed = await Task.WhenAny(recvTask, cancelTask).ConfigureAwait(false);
 
-                    if (completed != recvTask)       // 取消信号先到
-                        break;
+                    if (completed != recvTask) break;
 
-                    var res = recvTask.Result;       // 已完成，安全取值
-
+                    var res = recvTask.Result;
                     var f = TcCodec.TryParse(res.Buffer, out TcStatus err);
                     if (f == null) { OnFrameError?.Invoke(err, res.Buffer); continue; }
 
-                    // DeviceID 过滤：只接受 _deviceId 或 0xFF 广播响应（主站会把真实 ID 回填）
-                    // 按协议 §5.4，主站会用自身 ID 作为 Response DeviceID；广播请求的响应同样如此。
-                    // 所以这里不强制等于 _deviceId——仅按 SeqNo 分发。
-                    if (_pending.TryRemove(f.Header.SeqNo, out var tcs))
-                        tcs.TrySetResult(f);
+                    if (_pending.TryRemove(f.Header.SeqNo, out var pendingTcs))
+                        pendingTcs.TrySetResult(f);
                     else
                         OnUnsolicited?.Invoke(f);
                 }

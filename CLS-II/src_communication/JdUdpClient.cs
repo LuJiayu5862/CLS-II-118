@@ -125,7 +125,7 @@ namespace CLS_II
                 JdData.JdRx.PedalPosition = frame.PedalPosition;
                 JdData.JdRx.Checksum = frame.Checksum;
             }
-            System.Diagnostics.Debug.WriteLine($"PedalPos={JdData.JdRx.PedalPosition}");
+            //System.Diagnostics.Debug.WriteLine($"PedalPos={JdData.JdRx.PedalPosition}");
         }
 
         private void Udp_OnError(object sender, UDPClient.ErrorEventArgs e)

@@ -101,6 +101,7 @@
             this.stopToolStripButton = new System.Windows.Forms.ToolStripButton();
             this.resetToolStripButton = new System.Windows.Forms.ToolStripButton();
             this.toolStrip_UDP = new System.Windows.Forms.ToolStrip();
+            this.button1 = new System.Windows.Forms.Button();
             this.menuStrip_Main.SuspendLayout();
             this.statusStripMain.SuspendLayout();
             this.panel_Menu.SuspendLayout();
@@ -630,10 +631,18 @@
             resources.ApplyResources(this.toolStrip_UDP, "toolStrip_UDP");
             this.toolStrip_UDP.Name = "toolStrip_UDP";
             // 
+            // button1
+            // 
+            resources.ApplyResources(this.button1, "button1");
+            this.button1.Name = "button1";
+            this.button1.UseVisualStyleBackColor = true;
+            this.button1.Click += new System.EventHandler(this.button1_Click);
+            // 
             // MainForm
             // 
             resources.ApplyResources(this, "$this");
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
+            this.Controls.Add(this.button1);
             this.Controls.Add(this.panel_Body);
             this.Controls.Add(this.splitter2);
             this.Controls.Add(this.panel_Watch);
@@ -740,6 +749,7 @@
         private System.Windows.Forms.StatusStrip statusStrip1;
         private System.Windows.Forms.ToolStripStatusLabel toolStripStatusLabel4;
         private System.Windows.Forms.ToolStripStatusLabel toolStripStatusLabel5;
+        private System.Windows.Forms.Button button1;
     }
 }
 
