@@ -23,17 +23,17 @@ namespace CLS_II
         private readonly int _localRecvPort; // 上位机 8080
         private readonly byte _deviceId;    // 目标设备 ID，广播用 0xFF
 
-        private UdpClient? _udp;
-        private CancellationTokenSource? _cts;
-        private Task? _rxLoop;
+        private UdpClient _udp;
+        private CancellationTokenSource _cts;
+        private Task _rxLoop;
 
         private readonly ConcurrentDictionary<ushort, TaskCompletionSource<TcFrame>> _pending = new();
         private int _seq;                // 递增源（跳过 0）
         private int _consecutiveTimeouts;
 
-        public event Action<string>? OnLog;
-        public event Action<TcFrame>? OnUnsolicited; // 无匹配 SeqNo 的帧
-        public event Action<TcStatus, byte[]>? OnFrameError;
+        public event Action<string> OnLog;
+        public event Action<TcFrame> OnUnsolicited; // 无匹配 SeqNo 的帧
+        public event Action<TcStatus, byte[]> OnFrameError;
 
         public int TimeoutMs { get; set; } = 300;
         public int MaxRetries { get; set; } = 3;

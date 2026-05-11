@@ -23,13 +23,13 @@ namespace CLS_II
     {
         private readonly IPEndPoint _remote;   // 设备: 118.118:15000
         private readonly int _localRecvPort; // 上位机: 16000
-        private UdpClient? _udp;
-        private CancellationTokenSource? _cts;
-        private Task? _rxLoop;
+        private UdpClient _udp;
+        private CancellationTokenSource _cts;
+        private Task _rxLoop;
 
-        public event Action<JdRxFrame>? OnRx;
-        public event Action<string, byte[]>? OnRxError;      // (reason, raw)
-        public event Action<string>? OnLog;
+        public event Action<JdRxFrame> OnRx;
+        public event Action<string, byte[]> OnRxError;      // (reason, raw)
+        public event Action<string> OnLog;
 
         public bool IsRunning => _udp != null;
 

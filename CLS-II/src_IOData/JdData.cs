@@ -99,7 +99,7 @@ namespace CLS_II
         }
 
         /// <summary>解析 PLC→上位机 20B 帧（0xA5 头）；返回 null 表示帧结构错误</summary>
-        public static JdRxFrame? TryParseRx(ReadOnlySpan<byte> buf, out string? error)
+        public static JdRxFrame TryParseRx(ReadOnlySpan<byte> buf, out string error)
         {
             error = null;
             if (buf.Length != JdConstants.FRAME_LEN) { error = $"BAD_LEN: {buf.Length}"; return null; }

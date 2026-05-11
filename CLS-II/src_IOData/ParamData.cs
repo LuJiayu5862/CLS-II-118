@@ -209,7 +209,7 @@ namespace CLS_II
         }
 
         /// <summary>解析一帧；返回 null 表示失败，err 给出原因（§6 TcStatus 名）</summary>
-        public static TcFrame? TryParse(ReadOnlySpan<byte> buf, out TcStatus err)
+        public static TcFrame TryParse(ReadOnlySpan<byte> buf, out TcStatus err)
         {
             err = TcStatus.OK;
             if (buf.Length < TcLcsConstants.MIN_FRAME || buf.Length > TcLcsConstants.MAX_FRAME)

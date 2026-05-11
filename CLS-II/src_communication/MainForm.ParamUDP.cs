@@ -13,7 +13,7 @@ namespace CLS_II
 {
     public partial class MainForm
     {
-        private ParamUdpClient? _param;
+        private ParamUdpClient _param;
 
         /// <summary>目标设备 ID（默认 0x01；广播请求可用 0xFF）</summary>
         public byte ParamDeviceId { get; set; } = 0x01;

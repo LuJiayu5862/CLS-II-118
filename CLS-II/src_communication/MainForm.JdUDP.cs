@@ -13,10 +13,10 @@ namespace CLS_II
 {
     public partial class MainForm
     {
-        private JdUdpClient? _jd;
+        private JdUdpClient _jd;
 
         /// <summary>最近一次收到的脚蹬状态</summary>
-        public JdRxFrame? LastJdRx { get; private set; }
+        public JdRxFrame LastJdRx { get; private set; }
 
         private void StartJdUdp()
         {
