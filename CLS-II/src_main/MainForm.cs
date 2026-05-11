@@ -102,6 +102,7 @@ namespace CLS_II
                 if (GlobalVar.isSendUdp)
                 {
                     udpClient.Send(Struct_Func.StructToBytes(UdpData.LCSControls));
+                    JdUdpClient.Instance?.SendTx();
                 }
             }
             lock (UdpData.LCSParams)

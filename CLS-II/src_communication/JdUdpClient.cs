@@ -1,54 +1,62 @@
 // ============================================================================
-//  JdUdpClient.cs  —  JD-61101 UDP 收发客户端
+//  JdUdpClient.cs  —  JD-61101 UDP 收发客户端（单例）
 //
-//  网络（来自协议文档）：
-//    设备 192.168.118.118 : 15000 (监听/接收上位机指令)
-//    上位机本地        : 16000 (监听/接收设备数据)
-//  端口常量：GlobalVar.JdConsts.{szJdRemoteHost, nJdPortSend=15000, nJdPortRecv=16000}
-//  ⚠️ 注意：Snapshot v2 中 GlobalVar 里 nJdPortSend/Recv 是 16000/15000，
-//          与协议文档相反——请按协议文档为准，即：
-//            上位机 send → 15000（到设备）
-//            上位机 recv ← 16000（本地监听）
-//          已在 FLAG_TO_VERIFY 标注，最终以用户核对 GlobalVar.cs 为准。
+//  架构约定（2026-05-11 确认）：
+//    - 静态单例 Instance，MainForm.Method.ConnectDevice() 统一创建/销毁
+//    - 接收数据写入 JdData.JdRx（唯一真相源，在 JdData.cs 声明）
+//    - 发送数据从 JdData.JdTx 读取（mmTimer1_Ticked 调用 Send()）
 // ============================================================================
 using System;
-using System.Net;
-using System.Net.Sockets;
-using System.Threading;
-using System.Threading.Tasks;
 using UDP;
 
 namespace CLS_II
 {
     public sealed class JdUdpClient : IDisposable
     {
+        // -------- 单例 --------
+        public static JdUdpClient Instance { get; private set; }
+
+        // -------- 配置 --------
         private readonly string _remoteHost;
         private readonly int _remotePort;
         private readonly int _localRecvPort;
         private UDPClient _udp;
 
-        public event Action<JdRxFrame> OnRx;
-        public event Action<string, byte[]> OnRxError;   // (reason, raw)
         public event Action<string> OnLog;
+        public event Action<string, byte[]> OnRxError;   // (reason, raw)
 
         public bool IsRunning => _udp != null;
 
-        public JdUdpClient(string remoteHost, int remotePort, int localRecvPort)
+        private JdUdpClient(string remoteHost, int remotePort, int localRecvPort)
         {
             _remoteHost = remoteHost;
             _remotePort = remotePort;
             _localRecvPort = localRecvPort;
         }
 
-        public void Start()
+        /// <summary>创建并启动单例（幂等）</summary>
+        public static JdUdpClient StartInstance(string remoteHost, int remotePort, int localRecvPort)
+        {
+            if (Instance != null) return Instance;
+            Instance = new JdUdpClient(remoteHost, remotePort, localRecvPort);
+            Instance.Start();
+            return Instance;
+        }
+
+        /// <summary>停止并销毁单例（幂等）</summary>
+        public static void StopInstance()
+        {
+            Instance?.Stop();
+            Instance = null;
+        }
+
+        // -------- 内部 Start/Stop --------
+        private void Start()
         {
             if (_udp != null) return;
-
             _udp = new UDPClient(_remoteHost, _remotePort, _localRecvPort, 2048);
             _udp.onReceived += Udp_OnReceived;
             _udp.onError += Udp_OnError;
-
-            OnLog += msg => System.Diagnostics.Debug.WriteLine(msg);
             OnLog?.Invoke($"[Jd] listening on :{_localRecvPort}, remote={_remoteHost}:{_remotePort}");
         }
 
@@ -68,36 +76,59 @@ namespace CLS_II
 
         public void Dispose() => Stop();
 
-        // ------------------------------------------------------------------ 发送
-
-        /// <summary>发送 上位机→PLC 20B 帧</summary>
-        public void Send(JdTxFrame f)
+        // -------- 周期发送入口（mmTimer1_Ticked 调用）--------
+        /// <summary>从 JdData.JdTx 读取并发送（上位机→PLC 20B 帧）</summary>
+        public void SendTx()
         {
-            if (_udp == null) throw new InvalidOperationException("JdUdpClient not started");
-            byte[] buf = JdCodec.BuildTx(f);
+            if (_udp == null) return;
+            byte[] buf;
+            lock (JdData.JdTx)
+                buf = JdCodec.BuildTx(JdData.JdTx);
             _udp.Send(buf);
         }
 
-        /// <summary>便捷：清除故障码</summary>
-        public void SendClearFault() => Send(new JdTxFrame { ClearFault = JdConstants.CMD_RESET_FAULT });
+        /// <summary>便捷：清除故障码（写 JdTx 一次后发送，不持续）</summary>
+        public void SendClearFault()
+        {
+            lock (JdData.JdTx)
+                JdData.JdTx.ClearFault = JdConstants.CMD_RESET_FAULT;
+            SendTx();
+            lock (JdData.JdTx)
+                JdData.JdTx.ClearFault = 0x00;   // 脉冲后复位
+        }
 
-        /// <summary>便捷：操纵负荷复位回中立位（零位）</summary>
-        public void SendResetPedal() => Send(new JdTxFrame { ResetPedal = JdConstants.CMD_RESET_PEDAL_ZERO });
+        /// <summary>便捷：操纵负荷复位回中立位（脉冲）</summary>
+        public void SendResetPedal()
+        {
+            lock (JdData.JdTx)
+                JdData.JdTx.ResetPedal = JdConstants.CMD_RESET_PEDAL_ZERO;
+            SendTx();
+            lock (JdData.JdTx)
+                JdData.JdTx.ResetPedal = 0x00;
+        }
 
-        // ------------------------------------------------------------------ 回调
-
+        // -------- 接收回调：直接写入 JdData.JdRx --------
         private void Udp_OnReceived(object sender, UDPClient.ReceivedEventArgs e)
         {
             var frame = JdCodec.TryParseRx(e.MessageByte, out string err);
-            if (frame != null)
-                OnRx?.Invoke(frame);
-            else
+            if (frame == null)
+            {
                 OnRxError?.Invoke(err ?? "UNKNOWN", e.MessageByte);
+                return;
+            }
+            // 写入全局缓冲区（唯一真相源）
+            lock (JdData.JdRx)
+            {
+                JdData.JdRx.DeviceNo = frame.DeviceNo;
+                JdData.JdRx.DataLen = frame.DataLen;
+                JdData.JdRx.Status = frame.Status;
+                JdData.JdRx.PedalPosition = frame.PedalPosition;
+                JdData.JdRx.Checksum = frame.Checksum;
+            }
+            System.Diagnostics.Debug.WriteLine($"PedalPos={JdData.JdRx.PedalPosition}");
         }
 
         private void Udp_OnError(object sender, UDPClient.ErrorEventArgs e)
-        {
-            OnLog?.Invoke($"[Jd] err: {e.Ex.Message}");
-        }
+            => OnLog?.Invoke($"[Jd] err: {e.Ex.Message}");
     }
 }

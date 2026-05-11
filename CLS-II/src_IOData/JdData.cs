@@ -125,4 +125,15 @@ namespace CLS_II
             };
         }
     }
+    /// <summary>
+    /// JD-61101 数据全局缓冲区（唯一真相源）
+    /// - JdRx：PLC→上位机，由 JdUdpClient.OnRx 回调写入
+    /// - JdTx：上位机→PLC，由 UI/逻辑层写入，mmTimer1 周期读取发送
+    /// 线程安全：所有读写必须 lock (JdData.JdRx) / lock (JdData.JdTx)
+    /// </summary>
+    public static class JdData
+    {
+        public static readonly JdRxFrame JdRx = new JdRxFrame();
+        public static readonly JdTxFrame JdTx = new JdTxFrame();
+    }
 }

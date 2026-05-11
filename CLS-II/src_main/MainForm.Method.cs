@@ -206,6 +206,11 @@ namespace CLS_II
                 {
                     SetDefaultRemoteHost(GlobalVar.szRemoteHost, GlobalVar.nPortIn, GlobalVar.nPortOut1, GlobalVar.nPortOut2);
                     InitUDP();
+                    JdUdpClient.StartInstance(
+                        JdConsts.szJdRemoteHost,
+                        JdConsts.nJdPortSend,
+                        JdConsts.nJdPortRecv);
+                    GlobalVar.isUdpConnceted = true;
                     udpStateToolStripStatusLabel.Text = GlobalVar.szRemoteHost;
                 }
                 catch (Exception err)
@@ -238,6 +243,8 @@ namespace CLS_II
             if (GlobalVar.isUdpConnceted)
             {
                 DisposeUDP();
+                GlobalVar.isUdpConnceted = false;
+                JdUdpClient.StopInstance();
                 udpStateToolStripStatusLabel.Text = string.Empty;
             }
             if (MultiLanguage.DefaultLanguage == "zh")
