@@ -1,85 +1,93 @@
+// MainForm.JdUDP.cs
+// MainForm 分部类 — JD-61101 UDP 集成层
 using System;
 using System.Windows.Forms;
+using CLS_II.src_IOData;
+using CLS_II.src_communication;
 
 namespace CLS_II
 {
-    // ============================================================
-    //  MainForm  partial — JD-61101 通道
-    //  依赖：JdData.cs / JdUdpClient.cs / JdConsts (GlobalVar.cs)
-    //  与旧 UDP（MainForm.UDP.cs）完全独立，互不干扰
-    // ============================================================
-
-    public partial class MainForm
+    public partial class MainForm : Form
     {
-        private JdUdpClient _jdUdpClient;
+        // ── JD-61101 UDP 客户端实例
+        private JdUdpClient _jdUdp;
 
-        // ── 初始化 ────────────────────────────────────────────────
-        private void InitJdUDP()
+        // ── 最近一次脚蹬数据（供 UI 刷新使用）
+        private JdTxFrame _lastJdFrame;
+
+        /// <summary>启动 JD-61101 UDP 接收/发送</summary>
+        private void StartJdUdp()
         {
-            if (JdConsts.isJdUdpConnected) return;
-            try
-            {
-                _jdUdpClient = new JdUdpClient(
-                    JdConsts.szJdRemoteHost,
-                    JdConsts.nJdPortSend,
-                    JdConsts.nJdPortRecv);
-                _jdUdpClient.FrameReceived += JdClient_FrameReceived;
-                _jdUdpClient.ErrorOccurred += JdClient_ErrorOccurred;
-                _jdUdpClient.Start();
-                JdConsts.isJdUdpConnected = true;
-            }
-            catch (Exception ex)
-            {
-                throw new InvalidOperationException("JD UDP init failed: " + ex.Message);
-            }
+            if (_jdUdp != null && _jdUdp.IsRunning) return;
+            _jdUdp = new JdUdpClient();
+            _jdUdp.OnPedalUpdate += OnJdPedalUpdate;
+            _jdUdp.Start();
+            AppendJdLog("JD-61101 UDP 已启动");
         }
 
-        // ── 释放 ──────────────────────────────────────────────────
-        private void DisposeJdUDP()
+        /// <summary>停止 JD-61101 UDP</summary>
+        private void StopJdUdp()
         {
-            if (!JdConsts.isJdUdpConnected) return;
-            JdConsts.isJdUdpConnected = false;
-            _jdUdpClient?.Stop();
-            _jdUdpClient = null;
+            _jdUdp?.OnPedalUpdate -= OnJdPedalUpdate;
+            _jdUdp?.Stop();
+            _jdUdp?.Dispose();
+            _jdUdp = null;
+            AppendJdLog("JD-61101 UDP 已停止");
         }
 
-        // ── 发送指令（外部调用） ───────────────────────────────────
         /// <summary>
-        /// 发送 JD 控制指令
-        /// cmdCode: 0=Idle, 1=Reset, 2=Enable, 3=Disable
+        /// 脚蹬数据回调（在接收线程触发，需 Invoke 到 UI 线程）
         /// </summary>
-        public void JdSendCommand(UInt32 cmdCode, float setPoint = 0f)
+        private void OnJdPedalUpdate(JdTxFrame frame)
         {
-            if (!JdConsts.isJdUdpConnected) return;
-            lock (JdData.Command)
-            {
-                JdData.Command.cmdId++;
-                JdData.Command.cmdCode  = cmdCode;
-                JdData.Command.setPoint = setPoint;
-                _jdUdpClient?.Send(JdData.Command);
-            }
+            _lastJdFrame = frame;
+            if (InvokeRequired)
+                BeginInvoke(new Action(() => RefreshJdDisplay(frame)));
+            else
+                RefreshJdDisplay(frame);
         }
 
-        // ── 收帧回调 ──────────────────────────────────────────────
-        private void JdClient_FrameReceived(object sender, JdFrameArgs e)
+        /// <summary>刷新 UI 显示（UI 线程执行）</summary>
+        private void RefreshJdDisplay(JdTxFrame frame)
         {
-            lock (JdData.Feedback)
-            {
-                JdData.Feedback         = e.Frame;
-                JdData.LastReceivedTime = DateTime.Now;
-            }
-            // TODO: 新窗口完成后取消注释
-            // if (IsHandleCreated)
-            //     BeginInvoke(new Action(() => _jdTestForm?.RefreshData()));
+            // TODO: 将 frame.PedalPos / frame.Status 绑定到界面控件
+            // 示例（控件名请按实际替换）：
+            // lblPedalPos.Text = frame.PedalPos.ToString();
+            // lblJdStatus.Text = frame.Status == 0x00 ? "正常" : $"故障 0x{frame.Status:X2}";
+            AppendJdLog($"脚蹬位移={frame.PedalPos}  状态=0x{frame.Status:X2}  " +
+                        $"RX总计={_jdUdp?.RxCount}  错误={_jdUdp?.RxError}");
         }
 
-        // ── 错误回调 ──────────────────────────────────────────────
-        private void JdClient_ErrorOccurred(object sender, Exception ex)
+        /// <summary>发送故障复位指令</summary>
+        private void SendJdClearFault()
         {
-            if (IsHandleCreated)
-                BeginInvoke(new Action(() =>
-                    MessageBox.Show(ex.Message, "JD UDP Error",
-                        MessageBoxButtons.OK, MessageBoxIcon.Warning)));
+            _jdUdp?.Send(JdRxFrame.ClearFaultFrame());
+            AppendJdLog("已发送：故障复位（DATA5=0xAA）");
+        }
+
+        /// <summary>发送负荷复位指令（回中立位）</summary>
+        private void SendJdResetPedal()
+        {
+            _jdUdp?.Send(JdRxFrame.ResetPedalFrame());
+            AppendJdLog("已发送：操纵负荷复位（DATA7=0xAA）");
+        }
+
+        /// <summary>发送正常帧（保持在线心跳用）</summary>
+        private void SendJdNormal()
+        {
+            _jdUdp?.Send(JdRxFrame.Normal());
+        }
+
+        /// <summary>日志输出（预留，绑定到 ListBox 或 RichTextBox）</summary>
+        private void AppendJdLog(string msg)
+        {
+            var line = $"[{DateTime.Now:HH:mm:ss.fff}] [JD] {msg}";
+            System.Diagnostics.Debug.WriteLine(line);
+            // TODO: 绑定到 UI 日志控件，示例：
+            // if (lstJdLog.InvokeRequired)
+            //     lstJdLog.BeginInvoke(new Action(() => lstJdLog.Items.Add(line)));
+            // else
+            //     lstJdLog.Items.Add(line);
         }
     }
 }

@@ -1,106 +1,112 @@
+// JdUdpClient.cs
+// JD-61101 UDP 通信客户端
+// 网络参数（来自 JD-61101-UDP通信协议.docx）:
+//   设备 IP/Port:  192.168.118.118 : 15000  （上位机→设备，发送指令）
+//   上位机接收端口: 16000                    （设备→上位机，接收脚蹬数据）
 using System;
 using System.Net;
 using System.Net.Sockets;
-using System.Runtime.InteropServices;
 using System.Threading;
+using System.Threading.Tasks;
+using CLS_II.src_IOData;
+using CLS_II.src_GLV;
 
-namespace CLS_II
+namespace CLS_II.src_communication
 {
-    // ============================================================
-    //  JD-61101  UDP 收发实现
-    //  发送：_JdCommand  → PLC  (JdConsts.nJdPortSend)
-    //  接收：_JdFeedback ← PLC  (JdConsts.nJdPortRecv)
-    // ============================================================
-
-    public class JdUdpClient : IDisposable
+    /// <summary>
+    /// JD-61101 UDP 客户端
+    /// 接收来自设备的脚蹬位移数据（20 B 发送帧），并按需发出控制帧（20 B 接收帧）
+    /// </summary>
+    public sealed class JdUdpClient : IDisposable
     {
-        public event EventHandler<JdFrameArgs> FrameReceived;
-        public event EventHandler<Exception>   ErrorOccurred;
+        // ── 网络参数（来自 GlobalVar.cs JdConsts，严格按协议文档）
+        private readonly IPEndPoint _remoteEp;   // 设备端 192.168.118.118:15000
+        private readonly int        _localPort;  // 上位机接收端口 16000
+        private UdpClient           _udp;
+        private CancellationTokenSource _cts;
+        private Task _recvTask;
 
-        private readonly string _remoteHost;
-        private readonly int    _sendPort, _recvPort;
-        private UdpClient       _recvClient, _sendClient;
-        private Thread          _recvThread;
-        private volatile bool   _running;
+        // ── 统计
+        private int _rxCount;
+        private int _rxError;
 
-        private static readonly int FbSize  = Marshal.SizeOf(typeof(_JdFeedback));
-        private static readonly int CmdSize = Marshal.SizeOf(typeof(_JdCommand));
+        // ── 事件：每次收到合法脚蹬帧触发
+        public event Action<JdTxFrame> OnPedalUpdate;
 
-        public JdUdpClient(string host, int sendPort, int recvPort)
-        { _remoteHost = host; _sendPort = sendPort; _recvPort = recvPort; }
+        // ── 状态
+        public bool IsRunning => _recvTask != null && !_recvTask.IsCompleted;
+        public int  RxCount   => _rxCount;
+        public int  RxError   => _rxError;
 
+        public JdUdpClient()
+        {
+            _remoteEp  = new IPEndPoint(
+                IPAddress.Parse(GlobalVar.JdConsts.szJdRemoteHost),
+                GlobalVar.JdConsts.nJdPortSend);   // 15000 → 设备接收
+            _localPort = GlobalVar.JdConsts.nJdPortRecv;  // 16000 → 上位机接收
+        }
+
+        /// <summary>启动接收循环</summary>
         public void Start()
         {
-            if (_running) return;
-            _sendClient = new UdpClient();
-            _sendClient.Connect(_remoteHost, _sendPort);
-            _recvClient = new UdpClient(_recvPort);
-            _recvClient.Client.ReceiveTimeout = 1000;
-            _running    = true;
-            _recvThread = new Thread(ReceiveLoop)
-                { IsBackground = true, Name = "JdUdpRecv" };
-            _recvThread.Start();
+            if (IsRunning) return;
+            _cts = new CancellationTokenSource();
+            _udp = new UdpClient(_localPort);
+            _recvTask = Task.Run(() => ReceiveLoopAsync(_cts.Token));
         }
 
+        /// <summary>停止接收循环</summary>
         public void Stop()
         {
-            _running = false;
-            try { _recvClient?.Close(); } catch { }
-            try { _sendClient?.Close(); } catch { }
-            _recvThread?.Join(2000);
+            _cts?.Cancel();
+            _udp?.Close();
+            _recvTask?.Wait(500);
         }
 
-        public void Send(_JdCommand cmd)
+        /// <summary>
+        /// 向设备发送控制帧（接收帧，上位机→设备）
+        /// </summary>
+        public void Send(JdRxFrame frame)
         {
-            if (!_running) return;
-            byte[] buf = StructToBytes(cmd, CmdSize);
-            try { _sendClient.Send(buf, buf.Length); }
-            catch (Exception ex) { ErrorOccurred?.Invoke(this, ex); }
+            if (_udp == null) return;
+            var data = frame.Build();
+            _udp.Send(data, data.Length, _remoteEp);
         }
 
-        private void ReceiveLoop()
+        // ── 接收循环
+        private async Task ReceiveLoopAsync(CancellationToken ct)
         {
-            var ep = new IPEndPoint(IPAddress.Any, 0);
-            while (_running)
+            while (!ct.IsCancellationRequested)
             {
                 try
                 {
-                    byte[] buf = _recvClient.Receive(ref ep);
-                    if (buf.Length == FbSize)
+                    var result = await _udp.ReceiveAsync().WaitAsync(ct);
+                    var buf = result.Buffer;
+                    if (JdTxFrame.TryParse(buf, out var frame))
                     {
-                        var fb = (_JdFeedback)BytesToStruct(buf, typeof(_JdFeedback));
-                        FrameReceived?.Invoke(this, new JdFrameArgs(fb));
+                        Interlocked.Increment(ref _rxCount);
+                        OnPedalUpdate?.Invoke(frame);
+                    }
+                    else
+                    {
+                        Interlocked.Increment(ref _rxError);
                     }
                 }
-                catch (SocketException ex) when
-                    (ex.SocketErrorCode == SocketError.TimedOut) { }
+                catch (OperationCanceledException) { break; }
+                catch (SocketException) when (ct.IsCancellationRequested) { break; }
                 catch (Exception ex)
-                { if (_running) ErrorOccurred?.Invoke(this, ex); }
+                {
+                    Interlocked.Increment(ref _rxError);
+                    System.Diagnostics.Debug.WriteLine($"[JdUdpClient] RX error: {ex.Message}");
+                }
             }
         }
 
-        private static byte[] StructToBytes<T>(T s, int size) where T : struct
+        public void Dispose()
         {
-            var buf = new byte[size];
-            var h   = GCHandle.Alloc(buf, GCHandleType.Pinned);
-            try { Marshal.StructureToPtr(s, h.AddrOfPinnedObject(), false); }
-            finally { h.Free(); }
-            return buf;
+            Stop();
+            _udp?.Dispose();
+            _cts?.Dispose();
         }
-
-        private static object BytesToStruct(byte[] buf, Type t)
-        {
-            var h = GCHandle.Alloc(buf, GCHandleType.Pinned);
-            try { return Marshal.PtrToStructure(h.AddrOfPinnedObject(), t); }
-            finally { h.Free(); }
-        }
-
-        public void Dispose() => Stop();
-    }
-
-    public class JdFrameArgs : EventArgs
-    {
-        public _JdFeedback Frame { get; }
-        public JdFrameArgs(_JdFeedback f) { Frame = f; }
     }
 }
