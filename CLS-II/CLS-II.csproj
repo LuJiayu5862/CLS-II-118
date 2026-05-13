@@ -293,6 +293,7 @@
     </EmbeddedResource>
     <EmbeddedResource Include="src_Dialog\AdsVariableSample.resx">
       <DependentUpon>AdsVariableSample.cs</DependentUpon>
+      <SubType>Designer</SubType>
     </EmbeddedResource>
     <EmbeddedResource Include="src_main\MainForm.byn.resx">
       <DependentUpon>MainForm.cs</DependentUpon>

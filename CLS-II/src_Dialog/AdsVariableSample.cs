@@ -30,6 +30,7 @@ namespace CLS_II
             this._ChannelCount = ChannelCount;
 
             SetUDPTreeNode(UDPItem1, UDPStruct1);
+            SetParamTreeNode();
         }
 
         private void SetUDPTreeNode(string Item1, object Struct1)
@@ -74,6 +75,98 @@ namespace CLS_II
                 node.Nodes[node.Nodes.Count - 1].Tag = node2;
             }
             treeView2.Nodes.Add(node);
+            treeView2.ExpandAll();
+        }
+
+        private void SetParamTreeNode()
+        {
+            TreeNode rootNode = new TreeNode("Param");
+
+            var paramMap = new (string subName, object structObj)[]
+            {
+                ("CLSModel",   ParamData.CLS_Model),
+                ("CLSParam",   ParamData.CLS_Param),
+                ("CLS5K",      ParamData.CLS_5K),
+                ("CLSConsts",  ParamData.CLS_Consts),
+                ("TestMDL",    ParamData.Test_MDL),
+                ("CLSEnum",    ParamData.CLS_Enum),
+                ("XT",         ParamData.Param_XT),   // ← 新增
+                ("YT",         ParamData.Param_YT),   // ← 新增
+                ("CtrlIn",     ParamData.CtrlIn),
+                ("CtrlOut",    ParamData.CtrlOut),
+            };
+
+            foreach (var (subName, structObj) in paramMap)
+            {
+                TreeNode entryNode = rootNode.Nodes.Add(subName);
+                entryNode.Tag = 0;
+
+                TreeNode detailNode = new TreeNode(subName);
+
+                foreach (var field in structObj.GetType().GetFields(
+                    BindingFlags.Instance | BindingFlags.Public))
+                {
+                    Type ft = field.FieldType;
+
+                    // ===== 分支 A：数组字段（XT.aXT / YT.aYT）展开为 21 个叶节点 =====
+                    if (ft.IsArray)
+                    {
+                        Type elemType = ft.GetElementType();
+                        if (elemType == null) continue;
+
+                        int elemSize;
+                        try { elemSize = Marshal.SizeOf(elemType); }
+                        catch { continue; }
+
+                        // 从 MarshalAsAttribute 读取 SizeConst（21）
+                        int arrLen = 0;
+                        var maAttr = field.GetCustomAttribute<MarshalAsAttribute>();
+                        if (maAttr != null && maAttr.Value == UnmanagedType.ByValArray)
+                            arrLen = maAttr.SizeConst;
+                        if (arrLen <= 0) continue;
+
+                        for (int i = 0; i < arrLen; i++)
+                        {
+                            string elemName = $"{field.Name}[{i}]";
+                            var vi = new _WatchVarietyInfo
+                            {
+                                Name = elemName,
+                                Category = "Param",
+                                Port = subName,
+                                Source = $"{subName}.{field.Name}[{i}]",  // 带下标，刷新端解析
+                                Type = elemType.Name,                    // "Double"
+                                Size = elemSize.ToString(),
+                                Comment = ""
+                            };
+                            TreeNode leaf = detailNode.Nodes.Add(elemName);
+                            leaf.Tag = vi;
+                        }
+                        continue;
+                    }
+
+                    // ===== 分支 B：标量字段（原逻辑）=====
+                    int size = 0;
+                    try { size = Marshal.SizeOf(ft); }
+                    catch { continue; }
+
+                    var viScalar = new _WatchVarietyInfo
+                    {
+                        Name = field.Name,
+                        Category = "Param",
+                        Port = subName,
+                        Source = $"{subName}.{field.Name}",
+                        Type = ft.Name,
+                        Size = size.ToString(),
+                        Comment = ""
+                    };
+                    TreeNode leafScalar = detailNode.Nodes.Add(field.Name);
+                    leafScalar.Tag = viScalar;
+                }
+
+                entryNode.Tag = detailNode;
+            }
+
+            treeView2.Nodes.Add(rootNode);
             treeView2.ExpandAll();
         }
 

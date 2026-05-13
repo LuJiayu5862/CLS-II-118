@@ -239,6 +239,78 @@ namespace CLS_II
             }
         }
 
+        private void updateParamDataOnce()
+        {
+            lock (this.records)
+            {
+                for (int i = 0; i < WatchConfig.VarietyInfos.Count; i++)
+                {
+                    if (WatchConfig.VarietyInfos[i].Category != "Param") continue;
+
+                    string subName = WatchConfig.VarietyInfos[i].Port;
+                    string source = WatchConfig.VarietyInfos[i].Source;
+                    string tail = source.Substring(source.LastIndexOf('.') + 1);
+
+                    // 解析是否带下标
+                    string fieldName;
+                    int arrIndex = -1;
+                    int bracket = tail.IndexOf('[');
+                    if (bracket >= 0)
+                    {
+                        fieldName = tail.Substring(0, bracket);
+                        int rbr = tail.IndexOf(']', bracket);
+                        if (rbr > bracket)
+                            int.TryParse(tail.Substring(bracket + 1, rbr - bracket - 1), out arrIndex);
+                    }
+                    else
+                    {
+                        fieldName = tail;
+                    }
+
+                    object structObj = GetParamStruct(subName);
+                    string value = "(Not Found)";
+
+                    if (structObj != null)
+                    {
+                        var field = structObj.GetType().GetField(fieldName,
+                            BindingFlags.Instance | BindingFlags.Public);
+                        if (field != null)
+                        {
+                            object raw = field.GetValue(structObj);
+                            if (arrIndex >= 0 && raw is Array arr)
+                            {
+                                if (arrIndex < arr.Length)
+                                    value = Convert.ToString(arr.GetValue(arrIndex));
+                            }
+                            else
+                            {
+                                value = Convert.ToString(raw);
+                            }
+                        }
+                    }
+                    this.records[i].Value = value;
+                }
+            }
+        }
+
+        private object GetParamStruct(string subName)
+        {
+            switch (subName)
+            {
+                case "CLSModel": lock (ParamData.LockCLSModel) return ParamData.CLS_Model;
+                case "CLSParam": lock (ParamData.LockCLSParam) return ParamData.CLS_Param;
+                case "CLS5K": lock (ParamData.LockCLS5K) return ParamData.CLS_5K;
+                case "CLSConsts": lock (ParamData.LockCLSConsts) return ParamData.CLS_Consts;
+                case "TestMDL": lock (ParamData.LockTestMDL) return ParamData.Test_MDL;
+                case "CLSEnum": lock (ParamData.LockCLSEnum) return ParamData.CLS_Enum;
+                case "XT": lock (ParamData.LockXT) return ParamData.Param_XT;
+                case "YT": lock (ParamData.LockYT) return ParamData.Param_YT;
+                case "CtrlIn": lock (ParamData.LockCtrlIn) return ParamData.CtrlIn;
+                case "CtrlOut": lock (ParamData.LockCtrlOut) return ParamData.CtrlOut;
+                default: return null;
+            }
+        }
+
         //private void updateAdsDataOnce()
         //{
         //    lock (this.records)

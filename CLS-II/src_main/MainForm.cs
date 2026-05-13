@@ -739,9 +739,9 @@ namespace CLS_II
             {
                 MessageBox.Show($"{groupName} 返回错误帧。", groupName,
                                 MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
+                //return;
             }
-
+            else
             ParamData.TryDeserialize(ack);  // ← 解析存入全局变量
 
             string display = FormatGroupDisplay(groupName);

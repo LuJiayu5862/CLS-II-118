@@ -155,6 +155,7 @@ namespace CLS_II
             if (MainConfig.ConfigInfo.DebugItems.isAutoWatch)
             {
                 updateUdpDataOnce();
+                updateParamDataOnce();
                 //updateAdsDataOnce();
                 updateScopeDataOnce();
                 this.isWatchChanged = true;
@@ -166,6 +167,7 @@ namespace CLS_II
                 {
                     this.isUpdateOnce = false;
                     updateUdpDataOnce();
+                    updateParamDataOnce();
                     //updateAdsDataOnce();
                     updateScopeDataOnce();
                     this.isWatchChanged = true;
