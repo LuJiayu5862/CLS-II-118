@@ -90,6 +90,14 @@ namespace CLS_II
             if (textBox1.Visible)
                 textBox1.Focus();
             // 连接成功后，启用10ms定时器
+            if (GlobalVar.isUdpConnceted)
+            {
+                mmTimer1.Start();
+            }
+            else
+            {
+                mmTimer1.Stop();
+            }
             //if (GlobalVar.isUdpConnceted)
             //{
             //    if (!this._isAdsConnected)
@@ -500,6 +508,27 @@ namespace CLS_II
                         }
                     }
                 }
+                // 类别为 Param
+                else if (RegexMatch.StringDeleteBlank(category.ToString()) == "Param")
+                {
+                    if (string.IsNullOrEmpty(myToString(nextValue)))
+                        return;
+                    if (!matchUDPValue(myToString(type), myToString(nextValue)))  // Param的C#类型和UDP一致，复用matchUDPValue
+                    {
+                        if (MultiLanguage.DefaultLanguage == "zh")
+                            dataGridView1.Rows[e.RowIndex].ErrorText = "错误的输入内容。";
+                        else
+                            dataGridView1.Rows[e.RowIndex].ErrorText = "Bad input.";
+                        if (dataGridView1.EditingControl != null)
+                        {
+                            dataGridView1.EditingControl.Text = myToString(dataGridView1.CurrentCell.Value);
+                            textBox1.Text = dataGridView1.EditingControl.Text;
+                            textBox1.Visible = true;
+                            textBox1.Focus();
+                            e.Cancel = true;
+                        }
+                    }
+                }
                 // 未定义的类别
                 else
                 {
@@ -672,7 +701,35 @@ namespace CLS_II
         {
             //adsHandleCreate2();
             //writeAdsDataOnce();
-            isUpdateOnce = true;
+            int count = dataGridView1.Rows.Count;
+            bool hasError = false;
+
+            for (int i = 0; i < count; i++)
+            {
+                string nextVal = myToString(dataGridView1.Rows[i].Cells[(int)Columns.NextValue].Value);
+                if (string.IsNullOrWhiteSpace(nextVal))
+                    continue;
+
+                string category = myToString(dataGridView1.Rows[i].Cells[(int)Columns.Category].Value);
+                string type = myToString(dataGridView1.Rows[i].Cells[(int)Columns.Type].Value);
+
+                bool ok = false;
+                if (category == "UDP")
+                    ok = TryWriteUdpValue(WatchConfig.VarietyInfos[i], nextVal);
+                else if (category == "Param")
+                    ok = TryWriteParamValue(WatchConfig.VarietyInfos[i], nextVal);
+
+                if (ok)
+                    dataGridView1.Rows[i].Cells[(int)Columns.NextValue].Value = "";
+                else
+                    hasError = true;
+            }
+
+            if (hasError)
+                MessageBox.Show("部分变量写入失败，请检查类型或字段名。", "Watch",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+
+            isUpdateOnce = true;  // 写完立即刷新显示
         }
     }
 }

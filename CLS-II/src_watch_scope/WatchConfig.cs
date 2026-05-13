@@ -88,9 +88,10 @@ namespace CLS_II
             string[] sections = iniFileRW.INIGetAllSectionNames(watchConfigFile);
             foreach (string s in sections)
             {
+                string realName = UnescapeSectionName(s);
                 _VarietyInfo v = new _VarietyInfo
                 (
-                    iniFileRW.INIGetStringValue(watchConfigFile, s, "VarName", s),
+                    iniFileRW.INIGetStringValue(watchConfigFile, s, "VarName", realName),
                     iniFileRW.INIGetStringValue(watchConfigFile, s, "Category", String.Empty),
                     iniFileRW.INIGetStringValue(watchConfigFile, s, "Type", String.Empty),
                     iniFileRW.INIGetStringValue(watchConfigFile, s, "Port", String.Empty),
@@ -115,14 +116,28 @@ namespace CLS_II
             // Variety
             foreach (_VarietyInfo v in VarietyInfos)
             {
-                iniFileRW.INIWriteValue(watchConfigFile, v.VarName, "Name", v.VarName);
-                iniFileRW.INIWriteValue(watchConfigFile, v.VarName, "Scope", v.Scope == "True"? "True" : "False");
-                iniFileRW.INIWriteValue(watchConfigFile, v.VarName, "Category", v.Category is null ? string.Empty : v.Category);
-                iniFileRW.INIWriteValue(watchConfigFile, v.VarName, "Type", v.Type is null?string.Empty:v.Type);
-                iniFileRW.INIWriteValue(watchConfigFile, v.VarName, "Port", v.Port is null ? string.Empty : v.Port);
-                iniFileRW.INIWriteValue(watchConfigFile, v.VarName, "Source", v.Source is null ? string.Empty : v.Source);
-                iniFileRW.INIWriteValue(watchConfigFile, v.VarName, "Comment", v.Comment is null ? string.Empty : v.Comment);
+                string sec = EscapeSectionName(v.VarName);
+
+                iniFileRW.INIWriteValue(watchConfigFile, sec, "Name", v.VarName);
+                iniFileRW.INIWriteValue(watchConfigFile, sec, "Scope", v.Scope == "True"? "True" : "False");
+                iniFileRW.INIWriteValue(watchConfigFile, sec, "Category", v.Category is null ? string.Empty : v.Category);
+                iniFileRW.INIWriteValue(watchConfigFile, sec, "Type", v.Type is null?string.Empty:v.Type);
+                iniFileRW.INIWriteValue(watchConfigFile, sec, "Port", v.Port is null ? string.Empty : v.Port);
+                iniFileRW.INIWriteValue(watchConfigFile, sec, "Source", v.Source is null ? string.Empty : v.Source);
+                iniFileRW.INIWriteValue(watchConfigFile, sec, "Comment", v.Comment is null ? string.Empty : v.Comment);
             }
+        }
+
+        // ── INI Section名转义：[ → {{  ] → }}
+        private static string EscapeSectionName(string name)
+        {
+            return name.Replace("[", "{{").Replace("]", "}}");
+        }
+
+        // ── INI Section名反转义：{{ → [  }} → ]
+        private static string UnescapeSectionName(string name)
+        {
+            return name.Replace("{{", "[").Replace("}}", "]");
         }
     }
 }

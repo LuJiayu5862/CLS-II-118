@@ -740,7 +740,118 @@ namespace CLS_II
             else
                 return obj.ToString();
         }
-        
+
+        // ────────────────────────────────────────────────
+        //  写回：UDP
+        // ────────────────────────────────────────────────
+        private bool TryWriteUdpValue(WatchConfig._VarietyInfo variety, string input)
+        {
+            try
+            {
+                int channelID = int.Parse(variety.Port) - 1;
+                string varName = variety.Source;
+                varName = varName.Substring(varName.LastIndexOf(".") + 1);
+
+                // _Feedback 是值类型struct，必须装箱→改字段→拆箱回写
+                object boxed = UdpData.LCSInfos.Infos[channelID];
+                FieldInfo field = typeof(_Feedback).GetField(varName,
+                    BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+                if (field == null) return false;
+
+                object value = ConvertStringToTargetType(field.FieldType, input);
+                field.SetValue(boxed, value);
+                UdpData.LCSInfos.Infos[channelID] = (_Feedback)boxed;
+                return true;
+            }
+            catch { return false; }
+        }
+
+        // ────────────────────────────────────────────────
+        //  写回：Param（支持带下标的数组字段）
+        // ────────────────────────────────────────────────
+        private bool TryWriteParamValue(WatchConfig._VarietyInfo variety, string input)
+        {
+            try
+            {
+                string subName = variety.Port;
+                string tail = variety.Source.Substring(variety.Source.LastIndexOf('.') + 1);
+
+                string fieldName = tail;
+                int arrIndex = -1;
+                int lb = tail.IndexOf('[');
+                if (lb >= 0)
+                {
+                    int rb = tail.IndexOf(']', lb + 1);
+                    if (rb > lb)
+                    {
+                        fieldName = tail.Substring(0, lb);
+                        int.TryParse(tail.Substring(lb + 1, rb - lb - 1), out arrIndex);
+                    }
+                }
+
+                switch (subName)
+                {
+                    case "CLSModel": lock (ParamData.LockCLSModel) { object b = ParamData.CLS_Model; if (!SetField(ref b, fieldName, arrIndex, input)) return false; ParamData.CLS_Model = (ST_CLSModel)b; return true; }
+                    case "CLSParam": lock (ParamData.LockCLSParam) { object b = ParamData.CLS_Param; if (!SetField(ref b, fieldName, arrIndex, input)) return false; ParamData.CLS_Param = (ST_CLSParam)b; return true; }
+                    case "CLS5K": lock (ParamData.LockCLS5K) { object b = ParamData.CLS_5K; if (!SetField(ref b, fieldName, arrIndex, input)) return false; ParamData.CLS_5K = (ST_CLS5K)b; return true; }
+                    case "CLSConsts": lock (ParamData.LockCLSConsts) { object b = ParamData.CLS_Consts; if (!SetField(ref b, fieldName, arrIndex, input)) return false; ParamData.CLS_Consts = (ST_CLSConsts)b; return true; }
+                    case "TestMDL": lock (ParamData.LockTestMDL) { object b = ParamData.Test_MDL; if (!SetField(ref b, fieldName, arrIndex, input)) return false; ParamData.Test_MDL = (ST_TestMDL)b; return true; }
+                    case "CLSEnum": lock (ParamData.LockCLSEnum) { object b = ParamData.CLS_Enum; if (!SetField(ref b, fieldName, arrIndex, input)) return false; ParamData.CLS_Enum = (ST_CLSEnum)b; return true; }
+                    case "XT": lock (ParamData.LockXT) { object b = ParamData.Param_XT; if (!SetField(ref b, fieldName, arrIndex, input)) return false; ParamData.Param_XT = (ST_XT)b; return true; }
+                    case "YT": lock (ParamData.LockYT) { object b = ParamData.Param_YT; if (!SetField(ref b, fieldName, arrIndex, input)) return false; ParamData.Param_YT = (ST_YT)b; return true; }
+                    case "CtrlIn": lock (ParamData.LockCtrlIn) { object b = ParamData.CtrlIn; if (!SetField(ref b, fieldName, arrIndex, input)) return false; ParamData.CtrlIn = (ST_TcLCS_U)b; return true; }
+                    case "CtrlOut": lock (ParamData.LockCtrlOut) { object b = ParamData.CtrlOut; if (!SetField(ref b, fieldName, arrIndex, input)) return false; ParamData.CtrlOut = (ST_TcLCS_Y)b; return true; }
+                    default: return false;
+                }
+            }
+            catch { return false; }
+        }
+
+        // ────────────────────────────────────────────────
+        //  反射写字段/数组元素（通用）
+        // ────────────────────────────────────────────────
+        private bool SetField(ref object boxed, string fieldName, int arrIndex, string input)
+        {
+            FieldInfo field = boxed.GetType().GetField(fieldName,
+                BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+            if (field == null) return false;
+
+            if (arrIndex >= 0)
+            {
+                Array arr = field.GetValue(boxed) as Array;
+                if (arr == null || arrIndex >= arr.Length) return false;
+                Type elemType = field.FieldType.GetElementType();
+                arr.SetValue(ConvertStringToTargetType(elemType, input), arrIndex);
+                field.SetValue(boxed, arr);
+            }
+            else
+            {
+                field.SetValue(boxed, ConvertStringToTargetType(field.FieldType, input));
+            }
+            return true;
+        }
+
+        // ────────────────────────────────────────────────
+        //  字符串 → 目标类型转换（兼容 BOOL→byte 1/0）
+        // ────────────────────────────────────────────────
+        private object ConvertStringToTargetType(Type t, string s)
+        {
+            s = s.Trim();
+            if (t == typeof(bool)) return s == "1" || string.Equals(s, "true", StringComparison.OrdinalIgnoreCase);
+            if (t == typeof(byte)) return (string.Equals(s, "true", StringComparison.OrdinalIgnoreCase)) ? (byte)1 :
+                                            (string.Equals(s, "false", StringComparison.OrdinalIgnoreCase)) ? (byte)0 : byte.Parse(s);
+            if (t == typeof(sbyte)) return sbyte.Parse(s);
+            if (t == typeof(short)) return short.Parse(s);
+            if (t == typeof(ushort)) return ushort.Parse(s);
+            if (t == typeof(int)) return int.Parse(s);
+            if (t == typeof(uint)) return uint.Parse(s);
+            if (t == typeof(long)) return long.Parse(s);
+            if (t == typeof(ulong)) return ulong.Parse(s);
+            if (t == typeof(float)) return float.Parse(s);
+            if (t == typeof(double)) return double.Parse(s);
+            return Convert.ChangeType(s, t);
+        }
+
         //private void InitADS()
         //{
         //    if (!GlobalVar.isUdpConnceted)

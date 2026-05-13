@@ -359,6 +359,22 @@ namespace CLS_II
             return obj;
         }
 
+        /// <summary>从 bytes[offset] 起解析结构体，供 ALL 帧分段使用</summary>
+        public static object BytesToStruct(byte[] bytes, int offset, object structObj)
+        {
+            int size = Marshal.SizeOf(structObj);
+            IntPtr ptr = Marshal.AllocHGlobal(size);
+            try
+            {
+                Marshal.Copy(bytes, offset, ptr, size);
+                return Marshal.PtrToStructure(ptr, structObj.GetType());
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(ptr);
+            }
+        }
+
         public static byte[] StructToBytes(object structObj)
         {
             int size = Marshal.SizeOf(structObj);

@@ -572,6 +572,55 @@ namespace CLS_II
                     lock (LockUdpParamCfg)
                         UdpParam_Cfg = (ST_UDP_Parameter)Struct_Func.BytesToStruct(frame.Payload, UdpParam_Cfg);
                     return true;
+                case TcSubId.ALL:
+                    {
+                        // 992B = CLSModel(176) + CLSParam(144) + CLS5K(112) + CLSConsts(104)
+                        //      + TestMDL(88)   + CLSEnum(28)   + XT(168)    + YT(168)
+                        var p = frame.Payload;
+                        int off = 0;
+
+                        lock (LockCLSModel)
+                        {
+                            CLS_Model = (ST_CLSModel)Struct_Func.BytesToStruct(p, off, CLS_Model);
+                            off += 176;
+                        }
+                        lock (LockCLSParam)
+                        {
+                            CLS_Param = (ST_CLSParam)Struct_Func.BytesToStruct(p, off, CLS_Param);
+                            off += 144;
+                        }
+                        lock (LockCLS5K)
+                        {
+                            CLS_5K = (ST_CLS5K)Struct_Func.BytesToStruct(p, off, CLS_5K);
+                            off += 112;
+                        }
+                        lock (LockCLSConsts)
+                        {
+                            CLS_Consts = (ST_CLSConsts)Struct_Func.BytesToStruct(p, off, CLS_Consts);
+                            off += 104;
+                        }
+                        lock (LockTestMDL)
+                        {
+                            Test_MDL = (ST_TestMDL)Struct_Func.BytesToStruct(p, off, Test_MDL);
+                            off += 88;
+                        }
+                        lock (LockCLSEnum)
+                        {
+                            CLS_Enum = (ST_CLSEnum)Struct_Func.BytesToStruct(p, off, CLS_Enum);
+                            off += 28;
+                        }
+                        lock (LockXT)
+                        {
+                            Param_XT = (ST_XT)Struct_Func.BytesToStruct(p, off, Param_XT);
+                            off += 168;
+                        }
+                        lock (LockYT)
+                        {
+                            Param_YT = (ST_YT)Struct_Func.BytesToStruct(p, off, Param_YT);
+                            // off += 168;  // 最后一块，不再需要
+                        }
+                        return true;
+                    }
                 default:
                     System.Diagnostics.Debug.WriteLine(
                         $"[ParamData] TryDeserialize: unhandled SubID={frame.Header.SubId}");

@@ -182,6 +182,15 @@
   <data name="toolStripSeparator4.Size" type="System.Drawing.Size, System.Drawing">
     <value>6, 29</value>
   </data>
+  <data name="writeAllToolStripButton1.ImageTransparentColor" type="System.Drawing.Color, System.Drawing">
+    <value>Magenta</value>
+  </data>
+  <data name="writeAllToolStripButton1.Size" type="System.Drawing.Size, System.Drawing">
+    <value>34, 24</value>
+  </data>
+  <data name="writeAllToolStripButton1.Text" xml:space="preserve">
+    <value>写入全部准备值</value>
+  </data>
   <data name="writeToolStripButton.ImageTransparentColor" type="System.Drawing.Color, System.Drawing">
     <value>Magenta</value>
   </data>
@@ -194,15 +203,6 @@
   <assembly alias="mscorlib" name="mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089" />
   <data name="writeToolStripButton.Visible" type="System.Boolean, mscorlib">
     <value>False</value>
-  </data>
-  <data name="writeAllToolStripButton1.ImageTransparentColor" type="System.Drawing.Color, System.Drawing">
-    <value>Magenta</value>
-  </data>
-  <data name="writeAllToolStripButton1.Size" type="System.Drawing.Size, System.Drawing">
-    <value>34, 24</value>
-  </data>
-  <data name="writeAllToolStripButton1.Text" xml:space="preserve">
-    <value>写入全部准备值</value>
   </data>
   <data name="toolStrip1.Location" type="System.Drawing.Point, System.Drawing">
     <value>0, 115</value>

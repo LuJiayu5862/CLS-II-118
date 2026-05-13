@@ -75,8 +75,8 @@
             this.toolStripLabel2,
             this.refreshToolStripButton,
             this.toolStripSeparator4,
-            this.writeToolStripButton,
-            this.writeAllToolStripButton1});
+            this.writeAllToolStripButton1,
+            this.writeToolStripButton});
             this.toolStrip1.Name = "toolStrip1";
             // 
             // addToolStripButton

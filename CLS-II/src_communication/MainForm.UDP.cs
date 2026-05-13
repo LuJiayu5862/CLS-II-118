@@ -44,12 +44,8 @@ namespace CLS_II
 
         private void DisposeUDP()
         {
-            if (GlobalVar.isUdpConnceted)
-            {
-                GlobalVar.isUdpConnceted = false;
-                udpClient.CleanUp();
-                udpClient = null;
-            }
+            udpClient.CleanUp();
+            udpClient = null;
         }
 
         private void client_onError(object sender, UDPClient.ErrorEventArgs e)

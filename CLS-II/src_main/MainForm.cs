@@ -699,7 +699,7 @@ namespace CLS_II
         {
     "CLSModel", "CLSParam", "CLS5K", "CLSConsts", "TestMDL",
     "CLSEnum", "XT", "YT", "DeviceInfo", "UdpDataCfg", "UdpParamCfg",
-    "TcLCS_CtrlIn", "TcLCS_CtrlOut"
+    "TcLCS_CtrlIn", "TcLCS_CtrlOut", "TcLCS_P"
 };
 
         // ── CLS5K 按钮状态 ────────────────────────────────────────────────────────
@@ -849,6 +849,7 @@ namespace CLS_II
             "UdpParamCfg" => TcSubId.UdpParamCfg,
             "TcLCS_CtrlIn" => TcSubId.TcLCS_CtrlIn,
             "TcLCS_CtrlOut" => TcSubId.TcLCS_CtrlOut,
+            "TcLCS_P" => TcSubId.ALL,
             _ => throw new ArgumentException($"Unknown group: {name}")
         };
 
