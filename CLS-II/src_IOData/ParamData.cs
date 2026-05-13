@@ -627,5 +627,24 @@ namespace CLS_II
                     return false;
             }
         }
+        public static class Snap
+        {
+            // 写类（差分写监控）
+            public static ST_CLSModel CLS_Model = new ST_CLSModel();
+            public static ST_CLSParam CLS_Param = new ST_CLSParam();
+            public static ST_CLS5K CLS_5K = new ST_CLS5K();
+            public static ST_CLSConsts CLS_Consts = new ST_CLSConsts();
+            public static ST_TestMDL Test_MDL = new ST_TestMDL();
+            public static ST_CLSEnum CLS_Enum = new ST_CLSEnum();
+            public static ST_XT Param_XT = new ST_XT();
+            public static ST_YT Param_YT = new ST_YT();
+
+            // 周期写（每次 tick 都发，不做差分）
+            public static ST_TcLCS_U CtrlIn = new ST_TcLCS_U();
+
+            // 只读（轮询读回后同步到源变量和快照，源变量不可写）
+            // TcLCS_CtrlOut / DeviceInfo / UdpDataCfg / UdpParamCfg / ALL
+            // 这些的快照不需要声明，轮询读后直接覆盖源变量即可
+        }
     }
 }

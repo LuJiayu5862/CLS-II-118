@@ -160,6 +160,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="src_communication\MainForm.ParamPoll.cs" />
     <Compile Include="src_Dialog\AdsVariableSample.cs">
       <SubType>Form</SubType>
     </Compile>

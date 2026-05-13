@@ -114,6 +114,9 @@ namespace CLS_II
                     udpClient.Send(Struct_Func.StructToBytes(UdpData.LCSParams), nPortOut2);
                 }
             }
+
+            // ── 新增：硬实时触发 Param 轮询/写检测 ──
+            OnHiResTick();
         }
 
         private void mmTimer2_Ticked(object sender, EventArgs e)

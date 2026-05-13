@@ -47,6 +47,7 @@ namespace CLS_II
             {
                 Debug.WriteLine($"[Param] HELLO failed: {ex.Message}");
             }
+            StartPollAndWrite();
         }
 
         /// <summary>
@@ -54,6 +55,7 @@ namespace CLS_II
         /// </summary>
         private void StopParamUdp()
         {
+            StopPollAndWrite();
             ParamUdpClient.StopInstance();
         }
 
