@@ -420,6 +420,13 @@ namespace CLS_II
                         }
                     }
                 }
+                // 重建索引
+                _scopeRecordIndex.Clear();
+                lock (this.records)
+                {
+                    for (int j = 0; j < this.records.Count; j++)
+                        _scopeRecordIndex[this.records[j].Name] = j;
+                }
             }
         }
 
@@ -431,26 +438,15 @@ namespace CLS_II
                 {
                     for (int i = 0; i < WatchConfig.ScopeVarieties.Count; i++)
                     {
-                        for (int j = 0; j < this.records.Count; j++)
-                        {
-                            if (WatchConfig.ScopeVarieties[i].VarName == this.records[j].Name)
-                            {
-                                if (this.records[j].Value == "True" || this.records[j].Value == "False")
-                                {
-                                    WatchConfig.ScopeVarieties[i].Value = this.records[j].Value == "True" ? 1 : 0;
-                                }
-                                else
-                                {
-                                    double value = 0;
-                                    if (double.TryParse(this.records[j].Value, out value))
-                                        WatchConfig.ScopeVarieties[i].Value = value;
-                                    else
-                                        WatchConfig.ScopeVarieties[i].Value = 0;
-                                }
-                                break;
-                            }
-                            //WatchConfig.ScopeVarieties[i].Value = 0;
-                        }
+                        if (!_scopeRecordIndex.TryGetValue(WatchConfig.ScopeVarieties[i].VarName, out int j))
+                            continue;
+
+                        string val = this.records[j].Value;
+                        if (val == "True" || val == "False")
+                            WatchConfig.ScopeVarieties[i].Value = val == "True" ? 1 : 0;
+                        else
+                            WatchConfig.ScopeVarieties[i].Value =
+                                double.TryParse(val, out double d) ? d : 0;
                     }
                 }
             }
@@ -910,6 +906,8 @@ namespace CLS_II
         // 在 Watch 类头部添加（一次性初始化）：
         private static readonly Dictionary<(Type, string), FieldInfo> _fieldCache
             = new Dictionary<(Type, string), FieldInfo>();
+
+        private Dictionary<string, int> _scopeRecordIndex = new Dictionary<string, int>();
 
         private static FieldInfo GetCachedField(Type t, string name)
         {
