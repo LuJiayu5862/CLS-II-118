@@ -607,7 +607,7 @@ namespace CLS_II
                         lock (LockCLSEnum)
                         {
                             CLS_Enum = (ST_CLSEnum)Struct_Func.BytesToStruct(p, off, CLS_Enum);
-                            off += 28;
+                            off += 32;
                         }
                         lock (LockXT)
                         {

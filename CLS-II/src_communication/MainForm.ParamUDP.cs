@@ -47,6 +47,7 @@ namespace CLS_II
             {
                 Debug.WriteLine($"[Param] HELLO failed: {ex.Message}");
             }
+            SyncAllDiffSnaps();
             StartPollAndWrite();
         }
 

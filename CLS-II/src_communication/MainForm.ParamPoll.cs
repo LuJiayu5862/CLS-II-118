@@ -315,8 +315,28 @@ namespace CLS_II
         /// <summary>只读参数读回后将快照与源变量对齐（防止只读参数触发差分写）</summary>
         private static void SyncSnapFromSource(TcSubId sub)
         {
-            // 只读参数没有快照，不需要处理
-            // 若将来某参数从 DiffWrite 降级为 ReadOnly，在此添加同步
+            // ALL 或任意只读帧读回后，把 DiffWrite 变量的快照同步到源变量
+            // 防止轮询读覆盖源变量后，快照与源产生虚假差异触发误写
+            if (sub == TcSubId.ALL || sub == TcSubId.XT || sub == TcSubId.YT
+                || sub == TcSubId.CLSModel || sub == TcSubId.CLSParam
+                || sub == TcSubId.CLS5K || sub == TcSubId.CLSConsts
+                || sub == TcSubId.TestMDL || sub == TcSubId.CLSEnum)
+            {
+                SyncAllDiffSnaps();
+            }
+        }
+
+        /// <summary>将所有 DiffWrite 变量的快照与源变量对齐（读回后调用）</summary>
+        private static void SyncAllDiffSnaps()
+        {
+            ParamData.Snap.CLS_Model = ParamData.CLS_Model;
+            ParamData.Snap.CLS_Param = ParamData.CLS_Param;
+            ParamData.Snap.CLS_5K = ParamData.CLS_5K;
+            ParamData.Snap.CLS_Consts = ParamData.CLS_Consts;
+            ParamData.Snap.Test_MDL = ParamData.Test_MDL;
+            ParamData.Snap.CLS_Enum = ParamData.CLS_Enum;
+            ParamData.Snap.Param_XT = ParamData.Param_XT;
+            ParamData.Snap.Param_YT = ParamData.Param_YT;
         }
 
         // =========================================================================
