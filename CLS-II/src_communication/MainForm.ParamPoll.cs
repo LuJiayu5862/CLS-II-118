@@ -358,7 +358,13 @@ namespace CLS_II
                     e.Countdown -= TICK_MS;
                     if (e.Countdown > 0) continue;
                     e.Countdown = e.PeriodMs;
-                    _ = PollReadOnceAsync(e.Sub);
+                    if (e.Mode == PollMode.ReadOnly)
+                        _ = PollReadOnceAsync(e.Sub);
+                    else if (e.Mode == PollMode.DiffWrite)
+                    { 
+                        if (HasChanged(e.Sub)) 
+                            EnqueueWrite(e.Sub, e.Priority); 
+                    }
                 }
                 try { await Task.Delay(TICK_MS, ct).ConfigureAwait(false); }
                 catch (OperationCanceledException) { break; }
