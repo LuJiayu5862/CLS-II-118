@@ -307,6 +307,9 @@ namespace CLS_II
                 case "YT": lock (ParamData.LockYT) return ParamData.Param_YT;
                 case "CtrlIn": lock (ParamData.LockCtrlIn) return ParamData.CtrlIn;
                 case "CtrlOut": lock (ParamData.LockCtrlOut) return ParamData.CtrlOut;
+                case "DeviceInfo": lock (ParamData.LockDevInfo) return ParamData.Device_Info;
+                case "UdpDataCfg": lock (ParamData.LockUdpDataCfg) return ParamData.UdpData_Cfg;
+                case "UdpParamCfg": lock (ParamData.LockUdpParamCfg) return ParamData.UdpParam_Cfg;
                 default: return null;
             }
         }
@@ -729,6 +732,17 @@ namespace CLS_II
                         return true;
                     else
                         return false;
+                case "Byte":
+                    if (RegexMatch.isPositiveInteger(value))
+                    {
+                        int intValue = int.Parse(value);
+                        if (intValue >= 0 && intValue <= 255)
+                            return true;
+                        else
+                            return false;
+                    }
+                    else
+                        return false;
             }
             return false;
         }
@@ -801,6 +815,9 @@ namespace CLS_II
                     case "YT": lock (ParamData.LockYT) { object b = ParamData.Param_YT; if (!SetField(ref b, fieldName, arrIndex, input)) return false; ParamData.Param_YT = (ST_YT)b; return true; }
                     case "CtrlIn": lock (ParamData.LockCtrlIn) { object b = ParamData.CtrlIn; if (!SetField(ref b, fieldName, arrIndex, input)) return false; ParamData.CtrlIn = (ST_TcLCS_U)b; return true; }
                     case "CtrlOut": lock (ParamData.LockCtrlOut) { object b = ParamData.CtrlOut; if (!SetField(ref b, fieldName, arrIndex, input)) return false; ParamData.CtrlOut = (ST_TcLCS_Y)b; return true; }
+                    case "DeviceInfo": lock (ParamData.LockDevInfo) { object b = ParamData.Device_Info; if (!SetField(ref b, fieldName, arrIndex, input)) return false; ParamData.Device_Info = (ST_DeviceInfo)b; return true; }
+                    case "UdpDataCfg": lock (ParamData.LockUdpDataCfg) { object b = ParamData.UdpData_Cfg; if (!SetField(ref b, fieldName, arrIndex, input)) return false; ParamData.UdpData_Cfg = (ST_UDP_Parameter)b; return true; }
+                    case "UdpParamCfg": lock (ParamData.LockUdpParamCfg) { object b = ParamData.UdpParam_Cfg; if (!SetField(ref b, fieldName, arrIndex, input)) return false; ParamData.UdpParam_Cfg = (ST_UDP_Parameter)b; return true; }
                     default: return false;
                 }
             }

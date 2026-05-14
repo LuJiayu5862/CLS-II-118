@@ -76,17 +76,20 @@ namespace CLS_II
             new PollEntry { Sub=TcSubId.CLSEnum,        PeriodMs=100,   Mode=PollMode.DiffWrite,   Timer=TimerType.Soft, Priority=1 },
             new PollEntry { Sub=TcSubId.XT,             PeriodMs=100,   Mode=PollMode.DiffWrite,   Timer=TimerType.Soft, Priority=1 },
             new PollEntry { Sub=TcSubId.YT,             PeriodMs=100,   Mode=PollMode.DiffWrite,   Timer=TimerType.Soft, Priority=1 },
+            new PollEntry { Sub=TcSubId.DeviceInfo,     PeriodMs=100,   Mode=PollMode.DiffWrite,   Timer=TimerType.Soft, Priority=1 },
+            new PollEntry { Sub=TcSubId.UdpDataCfg,     PeriodMs=100,   Mode=PollMode.DiffWrite,   Timer=TimerType.Soft, Priority=1 },
+            new PollEntry { Sub=TcSubId.UdpParamCfg,    PeriodMs=100,   Mode=PollMode.DiffWrite,   Timer=TimerType.Soft, Priority=1 },
 
             // 只读：CtrlOut，10ms，挂硬实时
-            new PollEntry { Sub=TcSubId.TcLCS_CtrlOut,  PeriodMs=10,   Mode=PollMode.ReadOnly,    Timer=TimerType.HiRes, Priority=99 },
+            new PollEntry { Sub=TcSubId.TcLCS_CtrlOut,  PeriodMs=10,    Mode=PollMode.ReadOnly,    Timer=TimerType.HiRes,Priority=99 },
 
             // 只读：全部参数，1s，软定时
-            new PollEntry { Sub=TcSubId.ALL,             PeriodMs=1000, Mode=PollMode.ReadOnly,    Timer=TimerType.Soft,  Priority=99 },
+            new PollEntry { Sub=TcSubId.ALL,            PeriodMs=1000,  Mode=PollMode.ReadOnly,    Timer=TimerType.Soft, Priority=99 },
 
             // 只读：配置，2s，软定时
-            new PollEntry { Sub=TcSubId.DeviceInfo,      PeriodMs=1000, Mode=PollMode.ReadOnly,    Timer=TimerType.Soft,  Priority=99 },
-            new PollEntry { Sub=TcSubId.UdpDataCfg,      PeriodMs=1000, Mode=PollMode.ReadOnly,    Timer=TimerType.Soft,  Priority=99 },
-            new PollEntry { Sub=TcSubId.UdpParamCfg,     PeriodMs=1000, Mode=PollMode.ReadOnly,    Timer=TimerType.Soft,  Priority=99 },
+            new PollEntry { Sub=TcSubId.DeviceInfo,     PeriodMs=1000,  Mode=PollMode.ReadOnly,    Timer=TimerType.Soft, Priority=99 },
+            new PollEntry { Sub=TcSubId.UdpDataCfg,     PeriodMs=1000,  Mode=PollMode.ReadOnly,    Timer=TimerType.Soft, Priority=99 },
+            new PollEntry { Sub=TcSubId.UdpParamCfg,    PeriodMs=1000,  Mode=PollMode.ReadOnly,    Timer=TimerType.Soft, Priority=99 },
         };
 
         // ── 写队列（优先级队列，线程安全）────────────────────────────────────
@@ -156,6 +159,12 @@ namespace CLS_II
                     return !StructBytesEqual(ParamData.Param_XT, ParamData.Snap.Param_XT);
                 case TcSubId.YT:
                     return !StructBytesEqual(ParamData.Param_YT, ParamData.Snap.Param_YT);
+                case TcSubId.DeviceInfo:
+                    return !StructBytesEqual(ParamData.Device_Info, ParamData.Snap.DeviceInfo);
+                case TcSubId.UdpDataCfg:
+                    return !StructBytesEqual(ParamData.UdpData_Cfg, ParamData.Snap.UdpDataCfg);
+                case TcSubId.UdpParamCfg:
+                    return !StructBytesEqual(ParamData.UdpParam_Cfg, ParamData.Snap.UdpParamCfg);
                 case TcSubId.TcLCS_CtrlIn:
                     return !StructBytesEqual(ParamData.CtrlIn, ParamData.Snap.CtrlIn);
                 default:
@@ -194,6 +203,9 @@ namespace CLS_II
                 case TcSubId.CLSEnum: payload = Struct_Func.StructToBytes(ParamData.CLS_Enum); break;
                 case TcSubId.XT: payload = Struct_Func.StructToBytes(ParamData.Param_XT); break;
                 case TcSubId.YT: payload = Struct_Func.StructToBytes(ParamData.Param_YT); break;
+                case TcSubId.DeviceInfo: payload = Struct_Func.StructToBytes(ParamData.Device_Info); break;
+                case TcSubId.UdpDataCfg: payload = Struct_Func.StructToBytes(ParamData.UdpData_Cfg); break;
+                case TcSubId.UdpParamCfg: payload = Struct_Func.StructToBytes(ParamData.UdpParam_Cfg); break;
                 default: return;
             }
             _writeQueue.Enqueue(new WriteJob { Sub = sub, Payload = payload, Priority = priority });
@@ -287,6 +299,12 @@ namespace CLS_II
                     ParamData.Snap.Param_XT = (ST_XT)Struct_Func.BytesToStruct(payload, new ST_XT()); break;
                 case TcSubId.YT:
                     ParamData.Snap.Param_YT = (ST_YT)Struct_Func.BytesToStruct(payload, new ST_YT()); break;
+                case TcSubId.DeviceInfo:
+                    ParamData.Snap.DeviceInfo = (ST_DeviceInfo)Struct_Func.BytesToStruct(payload, new ST_DeviceInfo()); break;
+                case TcSubId.UdpDataCfg:
+                    ParamData.Snap.UdpDataCfg = (ST_UDP_Parameter)Struct_Func.BytesToStruct(payload, new ST_UDP_Parameter()); break;
+                case TcSubId.UdpParamCfg:
+                    ParamData.Snap.UdpParamCfg = (ST_UDP_Parameter)Struct_Func.BytesToStruct(payload, new ST_UDP_Parameter()); break;
                 case TcSubId.TcLCS_CtrlIn:
                     // 周期写不维护快照（每次都发）
                     break;
@@ -322,7 +340,8 @@ namespace CLS_II
             if (sub == TcSubId.ALL || sub == TcSubId.XT || sub == TcSubId.YT
                 || sub == TcSubId.CLSModel || sub == TcSubId.CLSParam
                 || sub == TcSubId.CLS5K || sub == TcSubId.CLSConsts
-                || sub == TcSubId.TestMDL || sub == TcSubId.CLSEnum)
+                || sub == TcSubId.TestMDL || sub == TcSubId.CLSEnum
+                || sub == TcSubId.DeviceInfo || sub == TcSubId.UdpDataCfg || sub == TcSubId.UdpParamCfg)
             {
                 SyncAllDiffSnaps();
             }
@@ -339,6 +358,9 @@ namespace CLS_II
             ParamData.Snap.CLS_Enum = ParamData.CLS_Enum;
             ParamData.Snap.Param_XT = ParamData.Param_XT;
             ParamData.Snap.Param_YT = ParamData.Param_YT;
+            ParamData.Snap.DeviceInfo = ParamData.Device_Info;
+            ParamData.Snap.UdpDataCfg = ParamData.UdpData_Cfg;
+            ParamData.Snap.UdpParamCfg = ParamData.UdpParam_Cfg;
         }
 
         // =========================================================================

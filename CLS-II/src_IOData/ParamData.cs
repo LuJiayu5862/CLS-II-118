@@ -638,6 +638,10 @@ namespace CLS_II
             public static ST_CLSEnum CLS_Enum = new ST_CLSEnum();
             public static ST_XT Param_XT = new ST_XT();
             public static ST_YT Param_YT = new ST_YT();
+            public static ST_DeviceInfo DeviceInfo = new ST_DeviceInfo();
+            public static ST_UDP_Parameter UdpDataCfg = new ST_UDP_Parameter();
+            public static ST_UDP_Parameter UdpParamCfg = new ST_UDP_Parameter();
+            public static ST_TcLCS_Y CtrlOut = new ST_TcLCS_Y();
 
             // 周期写（每次 tick 都发，不做差分）
             public static ST_TcLCS_U CtrlIn = new ST_TcLCS_U();

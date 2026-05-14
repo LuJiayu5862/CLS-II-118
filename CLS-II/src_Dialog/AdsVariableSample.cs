@@ -90,10 +90,13 @@ namespace CLS_II
                 ("CLSConsts",  ParamData.CLS_Consts),
                 ("TestMDL",    ParamData.Test_MDL),
                 ("CLSEnum",    ParamData.CLS_Enum),
-                ("XT",         ParamData.Param_XT),   // ← 新增
-                ("YT",         ParamData.Param_YT),   // ← 新增
+                ("XT",         ParamData.Param_XT),
+                ("YT",         ParamData.Param_YT),
                 ("CtrlIn",     ParamData.CtrlIn),
                 ("CtrlOut",    ParamData.CtrlOut),
+                ("DeviceInfo", ParamData.Device_Info),
+                ("UdpDataCfg", ParamData.UdpData_Cfg),
+                ("UdpParamCfg",ParamData.UdpParam_Cfg),
             };
 
             foreach (var (subName, structObj) in paramMap)
