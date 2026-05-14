@@ -305,7 +305,9 @@ namespace CLS_II
 
         private void restartToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            MainForm_FormClosing(sender,null);           
+            MainForm_FormClosing(sender,null);
+            if (isClosing)
+                System.Environment.Exit(0);
         }
 
         private bool isClosing = false;

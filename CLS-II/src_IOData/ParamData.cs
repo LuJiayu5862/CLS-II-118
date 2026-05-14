@@ -381,9 +381,11 @@ namespace CLS_II
     [StructLayout(LayoutKind.Sequential, Pack = 8)]
     public struct ST_UDP_Parameter
     {
+        [TcString(15)]
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)]
         public byte[] LocalIP;        // STRING(15)  offset=0   16B
         public uint LocalPort;      // UDINT       offset=16   4B
+        [TcString(15)]
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)]
         public byte[] RemoteIP;       // STRING(15)  offset=20  16B
         public uint RemotePort;     // UDINT       offset=36   4B

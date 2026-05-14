@@ -110,7 +110,24 @@ namespace CLS_II
                     BindingFlags.Instance | BindingFlags.Public))
                 {
                     Type ft = field.FieldType;
-
+                    // ★ 新增：TcString 标记的 byte[] → 作为字符串单节点处理
+                    var tcStr = field.GetCustomAttribute<TcStringAttribute>();
+                    if (tcStr != null && ft == typeof(byte[]))
+                    {
+                        var vi = new _WatchVarietyInfo
+                        {
+                            Name = field.Name,
+                            Category = "Param",
+                            Port = subName,
+                            Source = $"{subName}.{field.Name}",
+                            Type = $"STRING({tcStr.MaxLen})",          // ★ 标记为 STRING 类型
+                            Size = (tcStr.MaxLen + 1).ToString(),
+                            Comment = $"STRING({tcStr.MaxLen})"
+                        };
+                        TreeNode leaf = detailNode.Nodes.Add(field.Name);
+                        leaf.Tag = vi;
+                        continue;   // 不走原来的数组展开逻辑
+                    }
                     // ===== 分支 A：数组字段（XT.aXT / YT.aYT）展开为 21 个叶节点 =====
                     if (ft.IsArray)
                     {

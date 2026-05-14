@@ -215,6 +215,7 @@
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="src_configFile\MainConfig.cs" />
+    <Compile Include="src_IOData\TcStringAttribute.cs" />
     <Compile Include="src_main\MainForm.cs">
       <SubType>Form</SubType>
     </Compile>

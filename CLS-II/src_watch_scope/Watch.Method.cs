@@ -282,6 +282,14 @@ namespace CLS_II
                                 if (arrIndex < arr.Length)
                                     value = Convert.ToString(arr.GetValue(arrIndex));
                             }
+                            // ★ 新增：TcString 字段显示为字符串
+                            else if (raw is byte[] rawBytes
+                                     && field.GetCustomAttribute<TcStringAttribute>() != null)
+                            {
+                                int nullIdx = Array.IndexOf(rawBytes, (byte)0);
+                                value = Encoding.ASCII.GetString(rawBytes, 0,
+                                            nullIdx < 0 ? rawBytes.Length : nullIdx);
+                            }
                             else
                             {
                                 value = Convert.ToString(raw);
@@ -743,6 +751,24 @@ namespace CLS_II
                     }
                     else
                         return false;
+                default:
+                    if (RegexMatch.isSameName("STRING", type))
+                    {
+                        string sizeStr = type.Substring(type.LastIndexOf('(') + 1,
+                            type.LastIndexOf(')') - type.LastIndexOf('(') - 1);
+                        if (!int.TryParse(sizeStr, out int maxLen)) return false;
+
+                        // 长度检查：不超过 STRING(N) 声明的最大字符数
+                        if (Value.Length > maxLen) return false;
+
+                        // ASCII 合法性检查：只允许可打印 ASCII（0x20-0x7E）
+                        foreach (char c in Value)
+                            if (c < 0x20 || c > 0x7E) return false;
+
+                        return true;
+                    }
+                    break;
+
             }
             return false;
         }
@@ -832,6 +858,18 @@ namespace CLS_II
             FieldInfo field = boxed.GetType().GetField(fieldName,
                 BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
             if (field == null) return false;
+
+            // ★ 新增：TcString 字段写入
+            var tcStr = field.GetCustomAttribute<TcStringAttribute>();
+            if (tcStr != null && field.FieldType == typeof(byte[]))
+            {
+                byte[] buf = new byte[tcStr.MaxLen + 1];   // 16 字节，含终止符
+                byte[] src = Encoding.ASCII.GetBytes(input.Trim());
+                Array.Copy(src, buf, Math.Min(src.Length, tcStr.MaxLen));
+                // 末位保持 0（终止符），已由 new byte[] 保证
+                field.SetValue(boxed, buf);
+                return true;
+            }
 
             if (arrIndex >= 0)
             {
