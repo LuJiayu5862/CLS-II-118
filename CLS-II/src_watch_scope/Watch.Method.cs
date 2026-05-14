@@ -11,6 +11,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using static CLS_II.MainConfig;
 
 namespace CLS_II
 {
@@ -280,9 +281,9 @@ namespace CLS_II
                             if (arrIndex >= 0 && raw is Array arr)
                             {
                                 if (arrIndex < arr.Length)
-                                    value = Convert.ToString(arr.GetValue(arrIndex));
+                                    value = FormatByMode(arr.GetValue(arrIndex));
                             }
-                            // ★ 新增：TcString 字段显示为字符串
+                            // TcString 字段显示为字符串
                             else if (raw is byte[] rawBytes
                                      && field.GetCustomAttribute<TcStringAttribute>() != null)
                             {
@@ -292,7 +293,7 @@ namespace CLS_II
                             }
                             else
                             {
-                                value = Convert.ToString(raw);
+                                value = FormatByMode(raw);
                             }
                         }
                     }
@@ -318,6 +319,48 @@ namespace CLS_II
                 case "DeviceInfo": lock (ParamData.LockDevInfo) return ParamData.Device_Info;
                 case "UdpDataCfg": lock (ParamData.LockUdpDataCfg) return ParamData.UdpData_Cfg;
                 case "UdpParamCfg": lock (ParamData.LockUdpParamCfg) return ParamData.UdpParam_Cfg;
+                default: return null;
+            }
+        }
+
+        /// <summary>
+        /// 从 JdData.JdTx / JdData.JdRx 刷新 Watch 显示值。
+        /// 在 mmTimer1_Ticked 中独立调用，不混入 updateParamDataOnce。
+        /// </summary>
+        private void updateJdDataOnce()
+        {
+            lock (this.records)
+            {
+                for (int i = 0; i < WatchConfig.VarietyInfos.Count; i++)
+                {
+                    if (WatchConfig.VarietyInfos[i].Category != "Jd") continue;
+
+                    string subName = WatchConfig.VarietyInfos[i].Port;   // "JdTx" / "JdRx"
+                    string source = WatchConfig.VarietyInfos[i].Source;
+                    string propName = source.Substring(source.LastIndexOf('.') + 1);
+
+                    object frameObj = GetJdFrame(subName);
+                    string value = "(Not Found)";
+
+                    if (frameObj != null)
+                    {
+                        var prop = frameObj.GetType().GetProperty(propName,
+                            BindingFlags.Instance | BindingFlags.Public);
+                        if (prop != null)
+                            value = FormatByMode(prop.GetValue(frameObj));
+                    }
+                    this.records[i].Value = value;
+                }
+            }
+        }
+
+        /// <summary>返回 JdTx 或 JdRx 帧对象（class，加锁后直接返回引用）</summary>
+        private object GetJdFrame(string subName)
+        {
+            switch (subName)
+            {
+                case "JdTx": lock (JdData.JdTx) return JdData.JdTx;
+                case "JdRx": lock (JdData.JdRx) return JdData.JdRx;
                 default: return null;
             }
         }
@@ -707,6 +750,13 @@ namespace CLS_II
         {
             string type = RegexMatch.StringDeleteBlank(Type);
             string value = RegexMatch.StringDeleteBlank(Value);
+
+            // ── 整数类型：若带 0x/0o/0b 前缀，按 ConvertStringToTargetType 同款规则验证 ──
+            if (IsIntegerTypeName(type) && HasIntPrefix(value))
+            {
+                return TryParseIntegerWithPrefix(type, value);
+            }
+
             switch (type)
             {
                 case "Int16":
@@ -769,12 +819,137 @@ namespace CLS_II
             return false;
         }
 
+        private static bool IsIntegerTypeName(string typeName)
+        {
+            switch (typeName)
+            {
+                case "Byte":
+                case "SByte":
+                case "Int16":
+                case "UInt16":
+                case "Int32":
+                case "UInt32":
+                case "Int64":
+                case "UInt64":
+                    return true;
+                default: return false;
+            }
+        }
+
+        private static bool HasIntPrefix(string s)
+        {
+            if (string.IsNullOrEmpty(s) || s.Length < 3) return false;
+            string p = s.Substring(0, 2);
+            return p == "0x" || p == "0X" || p == "0b" || p == "0B" || p == "0o" || p == "0O";
+        }
+
+        /// <summary>验证带前缀的整数字面量是否能装入目标类型（范围检查）</summary>
+        private static bool TryParseIntegerWithPrefix(string typeName, string s)
+        {
+            int radix;
+            string p = s.Substring(0, 2);
+            if (p == "0x" || p == "0X") radix = 16;
+            else if (p == "0b" || p == "0B") radix = 2;
+            else if (p == "0o" || p == "0O") radix = 8;
+            else return false;
+
+            string body = s.Substring(2);
+            ulong u;
+            try { u = Convert.ToUInt64(body, radix); }
+            catch { return false; }
+
+            // 范围校验（按补码视为合法位模式即可，不做有符号溢出限制）
+            switch (typeName)
+            {
+                case "Byte": case "SByte": return u <= 0xFFUL;
+                case "Int16": case "UInt16": return u <= 0xFFFFUL;
+                case "Int32": case "UInt32": return u <= 0xFFFFFFFFUL;
+                case "Int64": case "UInt64": return true;  // ulong 上限即帧上限
+                default: return false;
+            }
+        }
+
         public static string myToString(object obj)
         {
             if (obj is null)
                 return String.Empty;
             else
                 return obj.ToString();
+        }
+
+        // ══════════════════════════════════════════════════════════════════
+        //  按 WatchDataMode 格式化显示值（DEC/HEX/OCT/BIN，固定位宽）
+        //  - 整数类型受影响；浮点/Bool/String 始终走 Convert.ToString
+        //  - 有符号负数按二进制补码显示（与硬件调试惯例一致）
+        // ══════════════════════════════════════════════════════════════════
+        private static string FormatByMode(object raw)
+        {
+            if (raw == null) return string.Empty;
+            Type t = raw.GetType();
+
+            int mode = MainConfig.ConfigInfo.DebugItems.WatchMode;
+            if (mode == (int)WatchDataMode.DEC) return Convert.ToString(raw);
+
+            // 仅整数类型走非十进制；其他类型直接 ToString
+            int byteSize;
+            ulong u;   // 无符号统一容器（按补码）
+
+            if (t == typeof(byte)) { byteSize = 1; u = (byte)raw; }
+            else if (t == typeof(sbyte)) { byteSize = 1; u = (byte)(sbyte)raw; }
+            else if (t == typeof(short)) { byteSize = 2; u = (ushort)(short)raw; }
+            else if (t == typeof(ushort)) { byteSize = 2; u = (ushort)raw; }
+            else if (t == typeof(int)) { byteSize = 4; u = (uint)(int)raw; }
+            else if (t == typeof(uint)) { byteSize = 4; u = (uint)raw; }
+            else if (t == typeof(long)) { byteSize = 8; u = (ulong)(long)raw; }
+            else if (t == typeof(ulong)) { byteSize = 8; u = (ulong)raw; }
+            else return Convert.ToString(raw);   // 浮点/Bool/String/其他
+
+            switch (mode)
+            {
+                case (int)WatchDataMode.HEX:
+                    // 位宽 = 字节数 × 2
+                    return "0x" + u.ToString("X" + (byteSize * 2));
+
+                case (int)WatchDataMode.OCT:
+                    {
+                        // 八进制位宽：1B=3, 2B=6, 4B=11, 8B=22
+                        int octWidth = byteSize == 1 ? 3 : byteSize == 2 ? 6 : byteSize == 4 ? 11 : 22;
+                        string s = Convert.ToString((long)u, 8);
+                        // ulong 在 8 字节时可能超出 long 范围，单独处理
+                        if (byteSize == 8) s = ToOctalUInt64(u);
+                        return "0o" + s.PadLeft(octWidth, '0');
+                    }
+
+                case (int)WatchDataMode.BIN:
+                    {
+                        int binWidth = byteSize * 8;
+                        string s = byteSize == 8
+                            ? ToBinaryUInt64(u)
+                            : Convert.ToString((long)u, 2);
+                        return "0b" + s.PadLeft(binWidth, '0');
+                    }
+
+                default:
+                    return Convert.ToString(raw);
+            }
+        }
+
+        /// <summary>ulong → 八进制字符串（避免 Convert.ToString(long,8) 在 ulong 上溢出）</summary>
+        private static string ToOctalUInt64(ulong v)
+        {
+            if (v == 0) return "0";
+            var sb = new StringBuilder();
+            while (v > 0) { sb.Insert(0, (char)('0' + (int)(v & 7))); v >>= 3; }
+            return sb.ToString();
+        }
+
+        /// <summary>ulong → 二进制字符串（避免 long 符号位问题）</summary>
+        private static string ToBinaryUInt64(ulong v)
+        {
+            if (v == 0) return "0";
+            var sb = new StringBuilder();
+            while (v > 0) { sb.Insert(0, (v & 1) == 1 ? '1' : '0'); v >>= 1; }
+            return sb.ToString();
         }
 
         // ────────────────────────────────────────────────
@@ -888,9 +1063,31 @@ namespace CLS_II
         private object ConvertStringToTargetType(Type t, string s)
         {
             s = s.Trim();
-            if (t == typeof(bool)) return s == "1" || string.Equals(s, "true", StringComparison.OrdinalIgnoreCase);
-            if (t == typeof(byte)) return (string.Equals(s, "true", StringComparison.OrdinalIgnoreCase)) ? (byte)1 :
-                                            (string.Equals(s, "false", StringComparison.OrdinalIgnoreCase)) ? (byte)0 : byte.Parse(s);
+
+            // ── Bool/Byte 的 true/false 兼容（保留原行为）──
+            if (t == typeof(bool))
+                return s == "1" || string.Equals(s, "true", StringComparison.OrdinalIgnoreCase);
+            if (t == typeof(byte))
+            {
+                if (string.Equals(s, "true", StringComparison.OrdinalIgnoreCase)) return (byte)1;
+                if (string.Equals(s, "false", StringComparison.OrdinalIgnoreCase)) return (byte)0;
+            }
+
+            // ── 整数类型：尝试识别 0x/0o/0b 前缀（按补码） ──
+            if (IsIntegerType(t) && TryParseWithPrefix(s, out ulong u, out bool prefixed) && prefixed)
+            {
+                if (t == typeof(byte)) return (byte)u;
+                if (t == typeof(sbyte)) return (sbyte)(byte)u;
+                if (t == typeof(short)) return (short)(ushort)u;
+                if (t == typeof(ushort)) return (ushort)u;
+                if (t == typeof(int)) return (int)(uint)u;
+                if (t == typeof(uint)) return (uint)u;
+                if (t == typeof(long)) return (long)u;
+                if (t == typeof(ulong)) return u;
+            }
+
+            // ── 无前缀：原有十进制解析 ──
+            if (t == typeof(byte)) return byte.Parse(s);
             if (t == typeof(sbyte)) return sbyte.Parse(s);
             if (t == typeof(short)) return short.Parse(s);
             if (t == typeof(ushort)) return ushort.Parse(s);
@@ -901,6 +1098,70 @@ namespace CLS_II
             if (t == typeof(float)) return float.Parse(s);
             if (t == typeof(double)) return double.Parse(s);
             return Convert.ChangeType(s, t);
+        }
+
+        /// <summary>判断是否为整数类型（参与进制前缀解析）</summary>
+        private static bool IsIntegerType(Type t)
+        {
+            return t == typeof(byte) || t == typeof(sbyte)
+                || t == typeof(short) || t == typeof(ushort)
+                || t == typeof(int) || t == typeof(uint)
+                || t == typeof(long) || t == typeof(ulong);
+        }
+
+        /// <summary>
+        /// 尝试按 0x/0o/0b 前缀解析整数。
+        /// 返回值：是否解析成功；prefixed=true 表示识别到前缀（无论成败），用于上层决定是否回退到十进制。
+        /// 输出 ulong（按补码），调用方根据目标类型自行截断。
+        /// </summary>
+        private static bool TryParseWithPrefix(string s, out ulong result, out bool prefixed)
+        {
+            result = 0;
+            prefixed = false;
+            if (string.IsNullOrEmpty(s) || s.Length < 3) return false;
+
+            string p = s.Substring(0, 2);
+            string body = s.Substring(2);
+            int radix;
+
+            if (p == "0x" || p == "0X") radix = 16;
+            else if (p == "0b" || p == "0B") radix = 2;
+            else if (p == "0o" || p == "0O") radix = 8;
+            else return false;
+
+            prefixed = true;
+            try
+            {
+                result = Convert.ToUInt64(body, radix);
+                return true;
+            }
+            catch { return false; }
+        }
+
+        /// <summary>
+        /// Watch 写回 JdTx 字段。
+        /// JdRx 为只读，直接返回 false。
+        /// JdTxFrame 是 class（引用类型），反射写 Property 即可，无需装箱。
+        /// </summary>
+        private bool TryWriteJdValue(WatchConfig._VarietyInfo variety, string input)
+        {
+            try
+            {
+                if (variety.Port != "JdTx") return false;  // JdRx 只读
+
+                string source = variety.Source;
+                string propName = source.Substring(source.LastIndexOf('.') + 1);
+
+                var prop = typeof(JdTxFrame).GetProperty(propName,
+                    BindingFlags.Instance | BindingFlags.Public);
+                if (prop == null || !prop.CanWrite) return false;
+
+                object value = ConvertStringToTargetType(prop.PropertyType, input);
+                lock (JdData.JdTx)
+                    prop.SetValue(JdData.JdTx, value);
+                return true;
+            }
+            catch { return false; }
         }
 
         // 在 Watch 类头部添加（一次性初始化）：
@@ -919,6 +1180,8 @@ namespace CLS_II
             }
             return fi;
         }
+
+
 
         //private void InitADS()
         //{

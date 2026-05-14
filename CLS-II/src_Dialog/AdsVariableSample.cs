@@ -31,6 +31,7 @@ namespace CLS_II
 
             //SetUDPTreeNode(UDPItem1, UDPStruct1);
             SetParamTreeNode();
+            SetJdTreeNode();
         }
 
         private void SetUDPTreeNode(string Item1, object Struct1)
@@ -181,6 +182,55 @@ namespace CLS_II
                     };
                     TreeNode leafScalar = detailNode.Nodes.Add(field.Name);
                     leafScalar.Tag = viScalar;
+                }
+
+                entryNode.Tag = detailNode;
+            }
+
+            treeView2.Nodes.Add(rootNode);
+            treeView2.ExpandAll();
+        }
+
+        private void SetJdTreeNode()
+        {
+            TreeNode rootNode = new TreeNode("JD-61101");
+
+            var frameMap = new (string subName, object frameObj, bool readOnly)[]
+            {
+        ("JdTx", JdData.JdTx, false),
+        ("JdRx", JdData.JdRx, true),
+            };
+
+            foreach (var (subName, frameObj, readOnly) in frameMap)
+            {
+                TreeNode entryNode = rootNode.Nodes.Add(subName);
+                entryNode.Tag = 0;
+
+                TreeNode detailNode = new TreeNode(subName);
+
+                foreach (var prop in frameObj.GetType().GetProperties(
+                    BindingFlags.Instance | BindingFlags.Public))
+                {
+                    if (!prop.CanRead) continue;
+                    if (prop.GetIndexParameters().Length > 0) continue;  // 跳过索引器
+
+                    Type pt = prop.PropertyType;
+                    int size;
+                    try { size = Marshal.SizeOf(pt); }
+                    catch { continue; }  // bool IsFault 等无法 Marshal 的属性自动跳过
+
+                    var vi = new _WatchVarietyInfo
+                    {
+                        Name = prop.Name,
+                        Category = "Jd",
+                        Port = subName,          // "JdTx" / "JdRx"
+                        Source = $"{subName}.{prop.Name}",
+                        Type = pt.Name,          // "Byte", "Int32"
+                        Size = size.ToString(),
+                        Comment = readOnly ? "(ReadOnly)" : ""
+                    };
+                    TreeNode leaf = detailNode.Nodes.Add(prop.Name);
+                    leaf.Tag = vi;
                 }
 
                 entryNode.Tag = detailNode;

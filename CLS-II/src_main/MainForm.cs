@@ -97,18 +97,20 @@ namespace CLS_II
 
         private double phase = 0.0;
         private readonly double phaseIncrement = 2.0 * Math.PI * 1.0 * 0.001 * GlobalVar.MainPeriod; // 10ms增量对应相位变化
+        private static int JdCountdown = 0;
 
         private void mmTimer1_Ticked(object sender, EventArgs e)
         {
             // UDP发送任务
-            //lock (UdpData.LCSControls)
-            //{
-            //    if (GlobalVar.isSendUdp)
-            //    {
-            //        udpClient.Send(Struct_Func.StructToBytes(UdpData.LCSControls));
-            //        JdUdpClient.Instance?.SendTx();
-            //    }
-            //}
+            if (GlobalVar.isSendUdp)
+            {
+                JdCountdown -= GlobalVar.MainPeriod;  // 每次 tick = MainPeriod ms
+                if (JdCountdown <= 0)
+                {
+                    JdCountdown = GlobalVar.JdPeriod;
+                    JdUdpClient.Instance?.SendTx();
+                }
+            }
             //lock (UdpData.LCSParams)
             //{
             //    if (GlobalVar.isUdpConnceted && GlobalVar.isParamChanged)

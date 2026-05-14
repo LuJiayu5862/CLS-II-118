@@ -121,6 +121,61 @@
     <value>17, 17</value>
   </metadata>
   <assembly alias="System.Drawing" name="System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a" />
+  <data name="fileToolStripMenuItem.Size" type="System.Drawing.Size, System.Drawing">
+    <value>84, 28</value>
+  </data>
+  <data name="fileToolStripMenuItem.Text" xml:space="preserve">
+    <value>文件(F)</value>
+  </data>
+  <data name="userToolStripMenuItem.Size" type="System.Drawing.Size, System.Drawing">
+    <value>270, 34</value>
+  </data>
+  <data name="userToolStripMenuItem.Text" xml:space="preserve">
+    <value>用户(U)</value>
+  </data>
+  <data name="toolStripSeparator5.Size" type="System.Drawing.Size, System.Drawing">
+    <value>267, 6</value>
+  </data>
+  <data name="watchToolStripMenuItem.Size" type="System.Drawing.Size, System.Drawing">
+    <value>270, 34</value>
+  </data>
+  <data name="watchToolStripMenuItem.Text" xml:space="preserve">
+    <value>监视(W)</value>
+  </data>
+  <data name="autoWatchToolStripMenuItem.Size" type="System.Drawing.Size, System.Drawing">
+    <value>270, 34</value>
+  </data>
+  <data name="autoWatchToolStripMenuItem.Text" xml:space="preserve">
+    <value>自动监视(A)</value>
+  </data>
+  <data name="displayModeToolStripMenuItem.Size" type="System.Drawing.Size, System.Drawing">
+    <value>270, 34</value>
+  </data>
+  <data name="displayModeToolStripMenuItem.Text" xml:space="preserve">
+    <value>显示模式(M)</value>
+  </data>
+  <data name="debugToolStripMenuItem.Size" type="System.Drawing.Size, System.Drawing">
+    <value>88, 28</value>
+  </data>
+  <data name="debugToolStripMenuItem.Text" xml:space="preserve">
+    <value>调试(D)</value>
+  </data>
+  <data name="setToolStripMenuItem.Size" type="System.Drawing.Size, System.Drawing">
+    <value>84, 28</value>
+  </data>
+  <data name="setToolStripMenuItem.Text" xml:space="preserve">
+    <value>设置(S)</value>
+  </data>
+  <data name="helpToolStripMenuItem.Size" type="System.Drawing.Size, System.Drawing">
+    <value>88, 28</value>
+  </data>
+  <data name="helpToolStripMenuItem.Text" xml:space="preserve">
+    <value>帮助(H)</value>
+  </data>
+  <assembly alias="mscorlib" name="mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089" />
+  <data name="helpToolStripMenuItem.Visible" type="System.Boolean, mscorlib">
+    <value>False</value>
+  </data>
   <data name="menuStrip_Main.Location" type="System.Drawing.Point, System.Drawing">
     <value>0, 0</value>
   </data>
@@ -131,7 +186,6 @@
   <data name="menuStrip_Main.Size" type="System.Drawing.Size, System.Drawing">
     <value>1444, 36</value>
   </data>
-  <assembly alias="mscorlib" name="mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089" />
   <data name="menuStrip_Main.TabIndex" type="System.Int32, mscorlib">
     <value>8</value>
   </data>
@@ -149,12 +203,6 @@
   </data>
   <data name="&gt;&gt;menuStrip_Main.ZOrder" xml:space="preserve">
     <value>10</value>
-  </data>
-  <data name="fileToolStripMenuItem.Size" type="System.Drawing.Size, System.Drawing">
-    <value>84, 28</value>
-  </data>
-  <data name="fileToolStripMenuItem.Text" xml:space="preserve">
-    <value>文件(F)</value>
   </data>
   <data name="newToolStripMenuItem.ShortcutKeyDisplayString" xml:space="preserve">
     <value />
@@ -198,18 +246,6 @@
   <data name="reloadToolStripMenuItem.Text" xml:space="preserve">
     <value>重载(L)</value>
   </data>
-  <data name="debugToolStripMenuItem.Size" type="System.Drawing.Size, System.Drawing">
-    <value>88, 28</value>
-  </data>
-  <data name="debugToolStripMenuItem.Text" xml:space="preserve">
-    <value>调试(D)</value>
-  </data>
-  <data name="userToolStripMenuItem.Size" type="System.Drawing.Size, System.Drawing">
-    <value>212, 34</value>
-  </data>
-  <data name="userToolStripMenuItem.Text" xml:space="preserve">
-    <value>用户(U)</value>
-  </data>
   <data name="defaultToolStripMenuItem.Size" type="System.Drawing.Size, System.Drawing">
     <value>230, 34</value>
   </data>
@@ -225,59 +261,29 @@
   <data name="administratorToolStripMenuItem.Text" xml:space="preserve">
     <value>Administrator</value>
   </data>
-  <data name="toolStripSeparator5.Size" type="System.Drawing.Size, System.Drawing">
-    <value>209, 6</value>
-  </data>
-  <data name="watchToolStripMenuItem.Size" type="System.Drawing.Size, System.Drawing">
-    <value>212, 34</value>
-  </data>
-  <data name="watchToolStripMenuItem.Text" xml:space="preserve">
-    <value>监视(W)</value>
-  </data>
-  <data name="autoWatchToolStripMenuItem.Size" type="System.Drawing.Size, System.Drawing">
-    <value>212, 34</value>
-  </data>
-  <data name="autoWatchToolStripMenuItem.Text" xml:space="preserve">
-    <value>自动监视(A)</value>
-  </data>
-  <data name="displayModeToolStripMenuItem.Size" type="System.Drawing.Size, System.Drawing">
-    <value>212, 34</value>
-  </data>
-  <data name="displayModeToolStripMenuItem.Text" xml:space="preserve">
-    <value>显示模式(M)</value>
-  </data>
-  <data name="displayModeToolStripMenuItem.Visible" type="System.Boolean, mscorlib">
-    <value>False</value>
-  </data>
   <data name="decToolStripMenuItem.Size" type="System.Drawing.Size, System.Drawing">
-    <value>147, 34</value>
+    <value>270, 34</value>
   </data>
   <data name="decToolStripMenuItem.Text" xml:space="preserve">
     <value>DEC</value>
   </data>
   <data name="hexToolStripMenuItem.Size" type="System.Drawing.Size, System.Drawing">
-    <value>147, 34</value>
+    <value>270, 34</value>
   </data>
   <data name="hexToolStripMenuItem.Text" xml:space="preserve">
     <value>HEX</value>
   </data>
   <data name="octToolStripMenuItem.Size" type="System.Drawing.Size, System.Drawing">
-    <value>147, 34</value>
+    <value>270, 34</value>
   </data>
   <data name="octToolStripMenuItem.Text" xml:space="preserve">
     <value>OCT</value>
   </data>
   <data name="binToolStripMenuItem.Size" type="System.Drawing.Size, System.Drawing">
-    <value>147, 34</value>
+    <value>270, 34</value>
   </data>
   <data name="binToolStripMenuItem.Text" xml:space="preserve">
     <value>BIN</value>
-  </data>
-  <data name="setToolStripMenuItem.Size" type="System.Drawing.Size, System.Drawing">
-    <value>84, 28</value>
-  </data>
-  <data name="setToolStripMenuItem.Text" xml:space="preserve">
-    <value>设置(S)</value>
   </data>
   <data name="languageToolStripMenuItem.Size" type="System.Drawing.Size, System.Drawing">
     <value>170, 34</value>
@@ -311,15 +317,6 @@
   </data>
   <data name="exitToolStripMenuItem.Text" xml:space="preserve">
     <value>退出(X)</value>
-  </data>
-  <data name="helpToolStripMenuItem.Size" type="System.Drawing.Size, System.Drawing">
-    <value>88, 28</value>
-  </data>
-  <data name="helpToolStripMenuItem.Text" xml:space="preserve">
-    <value>帮助(H)</value>
-  </data>
-  <data name="helpToolStripMenuItem.Visible" type="System.Boolean, mscorlib">
-    <value>False</value>
   </data>
   <metadata name="statusStripMain.TrayLocation" type="System.Drawing.Point, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
     <value>289, 17</value>

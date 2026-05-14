@@ -162,9 +162,10 @@ namespace CLS_II
             // 自动监测模式
             if (MainConfig.ConfigInfo.DebugItems.isAutoWatch)
             {
-                updateUdpDataOnce();
+                //updateUdpDataOnce();
                 updateParamDataOnce();
                 //updateAdsDataOnce();
+                updateJdDataOnce();
                 updateScopeDataOnce();
                 this.isWatchChanged = true;
             }
@@ -174,9 +175,10 @@ namespace CLS_II
                 if (this.isUpdateOnce)
                 {
                     this.isUpdateOnce = false;
-                    updateUdpDataOnce();
+                    //updateUdpDataOnce();
                     updateParamDataOnce();
                     //updateAdsDataOnce();
+                    updateJdDataOnce();
                     updateScopeDataOnce();
                     this.isWatchChanged = true;
                 }
@@ -529,6 +531,27 @@ namespace CLS_II
                         }
                     }
                 }
+                // 类别为 Jd（复用 matchUDPValue，C# 类型与 UDP 一致）
+                else if (RegexMatch.StringDeleteBlank(category.ToString()) == "Jd")
+                {
+                    if (string.IsNullOrEmpty(myToString(nextValue)))
+                        return;
+                    if (!matchUDPValue(myToString(type), myToString(nextValue)))
+                    {
+                        if (MultiLanguage.DefaultLanguage == "zh")
+                            dataGridView1.Rows[e.RowIndex].ErrorText = "错误的输入内容。";
+                        else
+                            dataGridView1.Rows[e.RowIndex].ErrorText = "Bad input.";
+                        if (dataGridView1.EditingControl != null)
+                        {
+                            dataGridView1.EditingControl.Text = myToString(dataGridView1.CurrentCell.Value);
+                            textBox1.Text = dataGridView1.EditingControl.Text;
+                            textBox1.Visible = true;
+                            textBox1.Focus();
+                            e.Cancel = true;
+                        }
+                    }
+                }
                 // 未定义的类别
                 else
                 {
@@ -718,6 +741,8 @@ namespace CLS_II
                     ok = TryWriteUdpValue(WatchConfig.VarietyInfos[i], nextVal);
                 else if (category == "Param")
                     ok = TryWriteParamValue(WatchConfig.VarietyInfos[i], nextVal);
+                else if (category == "Jd") 
+                    ok = TryWriteJdValue(WatchConfig.VarietyInfos[i], nextVal);
 
                 if (ok)
                     dataGridView1.Rows[i].Cells[(int)Columns.NextValue].Value = "";
