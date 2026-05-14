@@ -66,6 +66,7 @@ namespace CLS_II
                     binToolStripMenuItem.Checked = true;
                     break;
             }
+            panel_Watch.Visible = false;
 
             // Body
             toolStrip_UDP.Visible = false;
@@ -200,7 +201,8 @@ namespace CLS_II
         private void watchToolStripMenuItem_Click(object sender, EventArgs e)
         {
             watchToolStripMenuItem.Checked = !watchToolStripMenuItem.Checked;
-            panel_Watch.Visible = watchToolStripMenuItem.Checked;           
+            if(GlobalVar.isUdpConnceted)
+                panel_Watch.Visible = watchToolStripMenuItem.Checked;           
         }
 
         private void hideToolStripMenuItem_Watch_Click(object sender, EventArgs e)
@@ -393,10 +395,12 @@ namespace CLS_II
             if (GlobalVar.isUdpConnceted)
             {
                 DisconnectDevice();
+                panel_Watch.Visible = false;
             }
             else
             {
                 ConnectDevice();
+                panel_Watch.Visible = watchToolStripMenuItem.Checked;
             }
         }
 

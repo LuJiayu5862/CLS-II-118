@@ -9,6 +9,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using static CLS_II.MainConfig;
@@ -297,6 +298,12 @@ namespace CLS_II
                             }
                         }
                     }
+                    // ── 高亮检测：Value 有变化时重置倒计时 ──
+                    if (this.records[i].Value != value)
+                    {
+                        if (i < _highlightCountdown.Length)
+                            Interlocked.Exchange(ref _highlightCountdown[i], 10);
+                    }
                     this.records[i].Value = value;
                 }
             }
@@ -348,6 +355,12 @@ namespace CLS_II
                             BindingFlags.Instance | BindingFlags.Public);
                         if (prop != null)
                             value = FormatByMode(prop.GetValue(frameObj));
+                    }
+                    // ── 高亮检测：Value 有变化时重置倒计时 ──
+                    if (this.records[i].Value != value)
+                    {
+                        if (i < _highlightCountdown.Length)
+                            Interlocked.Exchange(ref _highlightCountdown[i], 10);
                     }
                     this.records[i].Value = value;
                 }
@@ -1169,6 +1182,13 @@ namespace CLS_II
             = new Dictionary<(Type, string), FieldInfo>();
 
         private Dictionary<string, int> _scopeRecordIndex = new Dictionary<string, int>();
+        /// <summary>
+        /// 每行 Value 单元格的高亮倒计时（单位：timer1 tick，100ms/次）。
+        /// mmTimer1_Ticked 里检测到变化时置为 10（=1秒）。
+        /// timer1_Tick 里每次递减，归零时撤销黄色。
+        /// 线程安全：用 Interlocked 操作，无需 lock。
+        /// </summary>
+        private int[] _highlightCountdown = new int[0];
 
         private static FieldInfo GetCachedField(Type t, string name)
         {

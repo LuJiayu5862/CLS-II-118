@@ -153,6 +153,7 @@
             this.textBox4.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
             this.textBox4.Location = new System.Drawing.Point(151, 277);
             this.textBox4.Name = "textBox4";
+            this.textBox4.ReadOnly = true;
             this.textBox4.Size = new System.Drawing.Size(69, 31);
             this.textBox4.TabIndex = 26;
             this.textBox4.TextChanged += new System.EventHandler(this.textBox4_TextChanged);

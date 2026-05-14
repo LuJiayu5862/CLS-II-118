@@ -1,4 +1,5 @@
-﻿using System;
+﻿using MmTimer;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -6,9 +7,9 @@ using System.Drawing;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using MmTimer;
 
 namespace CLS_II
 {
@@ -125,21 +126,39 @@ namespace CLS_II
             if (this.isWatchChanged)
             {
                 this.isWatchChanged = false;
-                for (int i = 0; i < dataGridView1.Rows.Count; i++)
+                lock (this.records)
                 {
-                    dataGridView1.Rows[i].Cells[(int)Columns.Value].Value = this.records[i].Value;
-                    if (this.records[i].Value == "(Not Found)")
+                    for (int i = 0; i < dataGridView1.Rows.Count; i++)
                     {
-                        dataGridView1.Rows[i].DefaultCellStyle.BackColor = Color.OrangeRed;
-                        dataGridView1.Rows[i].Cells[(int)Columns.Scope].Value = "False";
-                        //if (!_isAdsSymbolNotFound && (string)dataGridView1.Rows[i].Cells[(int)Columns.Category].Value == "ADS")
-                        //{
-                        //    _isAdsSymbolNotFound = true;
-                        //}
-                    }
-                    else
-                    {
-                        dataGridView1.Rows[i].DefaultCellStyle.BackColor = SystemColors.Window; ;
+                        dataGridView1.Rows[i].Cells[(int)Columns.Value].Value = this.records[i].Value;
+
+                        // ── 行级背景色（Not Found 优先）──
+                        if (this.records[i].Value == "(Not Found)")
+                        {
+                            dataGridView1.Rows[i].DefaultCellStyle.BackColor = Color.OrangeRed;
+                            dataGridView1.Rows[i].Cells[(int)Columns.Scope].Value = "False";
+                        }
+                        else
+                        {
+                            dataGridView1.Rows[i].DefaultCellStyle.BackColor = SystemColors.Window;
+                        }
+
+                        // ── 单元格级高亮：倒计时递减，黄色/还原 ──
+                        if (i < _highlightCountdown.Length)
+                        {
+                            int cnt = _highlightCountdown[i];
+                            if (cnt > 0)
+                            {
+                                // 还有倒计时：黄色
+                                dataGridView1.Rows[i].Cells[(int)Columns.Value].Style.BackColor = Color.Yellow;
+                                Interlocked.Decrement(ref _highlightCountdown[i]);
+                            }
+                            else
+                            {
+                                // 倒计时归零：还原（清除单元格级覆盖）
+                                dataGridView1.Rows[i].Cells[(int)Columns.Value].Style.BackColor = Color.Empty;
+                            }
+                        }
                     }
                 }
             }
@@ -250,6 +269,8 @@ namespace CLS_II
                                 };
                                 this.records.Add(record);
                             }
+                            // 同步扩容高亮倒计时数组
+                            _highlightCountdown = new int[WatchConfig.VarietyInfos.Count];
                         }
                     }
                     //InitADS();
@@ -268,6 +289,7 @@ namespace CLS_II
                     dataGridView1.Rows.Clear();
                     this.records.Clear();
                     textBox1.Visible = false;
+                    _highlightCountdown = new int[0];
                     //DisposeADS();
                 }
             }
@@ -296,6 +318,8 @@ namespace CLS_II
                     };
                     this.records.Add(record);
                 }
+                // 同步缩容高亮倒计时数组
+                _highlightCountdown = new int[WatchConfig.VarietyInfos.Count];
             }
             //InitADS();
         }
@@ -325,6 +349,8 @@ namespace CLS_II
                 //dataGridView1.DataSource = new BindingList<WatchConfig._VarietyInfo>(WatchConfig.VarietyInfos);
                 dataGridView1.CurrentCell = null;
                 textBox1.Visible = false;
+                // 初始化高亮倒计时数组
+                _highlightCountdown = new int[WatchConfig.VarietyInfos.Count];
                 this._isInited = true;
             }
             
@@ -751,9 +777,18 @@ namespace CLS_II
             }
 
             if (hasError)
-                MessageBox.Show("部分变量写入失败，请检查类型或字段名。", "Watch",
+            {
+                if (MultiLanguage.DefaultLanguage == "zh")
+                {
+                    MessageBox.Show("部分变量写入失败，请检查类型或字段名。", "Watch",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
-
+                }
+                else
+                {
+                    MessageBox.Show("Some variables failed to be written. Please check the type or field name.", "Watch",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+            }
             isUpdateOnce = true;  // 写完立即刷新显示
         }
     }

@@ -66,7 +66,7 @@ namespace CLS_II
 
     public static class CLSConsts
     {
-        public const int TotalChannels = 10;
+        public const int TotalChannels = 1;
         public static int EnabledChannels = TotalChannels;
         public const int TotalSymbols = 5;
     }
