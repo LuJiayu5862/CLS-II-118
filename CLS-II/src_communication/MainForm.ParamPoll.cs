@@ -65,17 +65,17 @@ namespace CLS_II
         private static readonly PollEntry[] _pollTable = new PollEntry[]
         {
             // 周期写：CtrlIn，10ms，挂硬实时定时器，最高优先级
-            new PollEntry { Sub=TcSubId.TcLCS_CtrlIn,  PeriodMs=10,   Mode=PollMode.PeriodWrite, Timer=TimerType.HiRes, Priority=0 },
+            new PollEntry { Sub=TcSubId.TcLCS_CtrlIn,  PeriodMs=5,   Mode=PollMode.PeriodWrite, Timer=TimerType.HiRes, Priority=0 },
 
             // 差分写：参数写，硬实时检测（10ms检测周期），高优先级
-            new PollEntry { Sub=TcSubId.CLSModel,       PeriodMs=10,   Mode=PollMode.DiffWrite,   Timer=TimerType.HiRes, Priority=1 },
-            new PollEntry { Sub=TcSubId.CLSParam,       PeriodMs=10,   Mode=PollMode.DiffWrite,   Timer=TimerType.HiRes, Priority=1 },
-            new PollEntry { Sub=TcSubId.CLS5K,          PeriodMs=10,   Mode=PollMode.DiffWrite,   Timer=TimerType.HiRes, Priority=1 },
-            new PollEntry { Sub=TcSubId.CLSConsts,      PeriodMs=10,   Mode=PollMode.DiffWrite,   Timer=TimerType.HiRes, Priority=1 },
-            new PollEntry { Sub=TcSubId.TestMDL,        PeriodMs=10,   Mode=PollMode.DiffWrite,   Timer=TimerType.HiRes, Priority=1 },
-            new PollEntry { Sub=TcSubId.CLSEnum,        PeriodMs=10,   Mode=PollMode.DiffWrite,   Timer=TimerType.HiRes, Priority=1 },
-            new PollEntry { Sub=TcSubId.XT,             PeriodMs=10,   Mode=PollMode.DiffWrite,   Timer=TimerType.HiRes, Priority=1 },
-            new PollEntry { Sub=TcSubId.YT,             PeriodMs=10,   Mode=PollMode.DiffWrite,   Timer=TimerType.HiRes, Priority=1 },
+            new PollEntry { Sub=TcSubId.CLSModel,       PeriodMs=100,   Mode=PollMode.DiffWrite,   Timer=TimerType.Soft, Priority=1 },
+            new PollEntry { Sub=TcSubId.CLSParam,       PeriodMs=100,   Mode=PollMode.DiffWrite,   Timer=TimerType.Soft, Priority=1 },
+            new PollEntry { Sub=TcSubId.CLS5K,          PeriodMs=100,   Mode=PollMode.DiffWrite,   Timer=TimerType.Soft, Priority=1 },
+            new PollEntry { Sub=TcSubId.CLSConsts,      PeriodMs=100,   Mode=PollMode.DiffWrite,   Timer=TimerType.Soft, Priority=1 },
+            new PollEntry { Sub=TcSubId.TestMDL,        PeriodMs=100,   Mode=PollMode.DiffWrite,   Timer=TimerType.Soft, Priority=1 },
+            new PollEntry { Sub=TcSubId.CLSEnum,        PeriodMs=100,   Mode=PollMode.DiffWrite,   Timer=TimerType.Soft, Priority=1 },
+            new PollEntry { Sub=TcSubId.XT,             PeriodMs=100,   Mode=PollMode.DiffWrite,   Timer=TimerType.Soft, Priority=1 },
+            new PollEntry { Sub=TcSubId.YT,             PeriodMs=100,   Mode=PollMode.DiffWrite,   Timer=TimerType.Soft, Priority=1 },
 
             // 只读：CtrlOut，10ms，挂硬实时
             new PollEntry { Sub=TcSubId.TcLCS_CtrlOut,  PeriodMs=10,   Mode=PollMode.ReadOnly,    Timer=TimerType.HiRes, Priority=99 },
@@ -84,9 +84,9 @@ namespace CLS_II
             new PollEntry { Sub=TcSubId.ALL,             PeriodMs=1000, Mode=PollMode.ReadOnly,    Timer=TimerType.Soft,  Priority=99 },
 
             // 只读：配置，2s，软定时
-            new PollEntry { Sub=TcSubId.DeviceInfo,      PeriodMs=2000, Mode=PollMode.ReadOnly,    Timer=TimerType.Soft,  Priority=99 },
-            new PollEntry { Sub=TcSubId.UdpDataCfg,      PeriodMs=2000, Mode=PollMode.ReadOnly,    Timer=TimerType.Soft,  Priority=99 },
-            new PollEntry { Sub=TcSubId.UdpParamCfg,     PeriodMs=2000, Mode=PollMode.ReadOnly,    Timer=TimerType.Soft,  Priority=99 },
+            new PollEntry { Sub=TcSubId.DeviceInfo,      PeriodMs=1000, Mode=PollMode.ReadOnly,    Timer=TimerType.Soft,  Priority=99 },
+            new PollEntry { Sub=TcSubId.UdpDataCfg,      PeriodMs=1000, Mode=PollMode.ReadOnly,    Timer=TimerType.Soft,  Priority=99 },
+            new PollEntry { Sub=TcSubId.UdpParamCfg,     PeriodMs=1000, Mode=PollMode.ReadOnly,    Timer=TimerType.Soft,  Priority=99 },
         };
 
         // ── 写队列（优先级队列，线程安全）────────────────────────────────────
@@ -110,7 +110,7 @@ namespace CLS_II
             {
                 if (e.Timer != TimerType.HiRes) continue;
 
-                e.Countdown -= 10;  // 每次 tick = 10ms
+                e.Countdown -= GlobalVar.MainPeriod;  // 每次 tick = MainPeriod ms
                 if (e.Countdown > 0) continue;
                 e.Countdown = e.PeriodMs;
 
@@ -156,6 +156,8 @@ namespace CLS_II
                     return !StructBytesEqual(ParamData.Param_XT, ParamData.Snap.Param_XT);
                 case TcSubId.YT:
                     return !StructBytesEqual(ParamData.Param_YT, ParamData.Snap.Param_YT);
+                case TcSubId.TcLCS_CtrlIn:
+                    return !StructBytesEqual(ParamData.CtrlIn, ParamData.Snap.CtrlIn);
                 default:
                     return false;
             }

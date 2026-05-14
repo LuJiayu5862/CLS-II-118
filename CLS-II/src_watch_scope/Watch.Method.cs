@@ -852,6 +852,21 @@ namespace CLS_II
             return Convert.ChangeType(s, t);
         }
 
+        // 在 Watch 类头部添加（一次性初始化）：
+        private static readonly Dictionary<(Type, string), FieldInfo> _fieldCache
+            = new Dictionary<(Type, string), FieldInfo>();
+
+        private static FieldInfo GetCachedField(Type t, string name)
+        {
+            var key = (t, name);
+            if (!_fieldCache.TryGetValue(key, out var fi))
+            {
+                fi = t.GetField(name, BindingFlags.Instance | BindingFlags.Public);
+                _fieldCache[key] = fi;
+            }
+            return fi;
+        }
+
         //private void InitADS()
         //{
         //    if (!GlobalVar.isUdpConnceted)

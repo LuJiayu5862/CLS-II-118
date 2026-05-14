@@ -86,7 +86,7 @@ namespace CLS_II
             timer_Base.Enabled = true;
             timer_Base.Start();
             // 打开高精度定时器1
-            mmTimer1 = new HPTimer(10);
+            mmTimer1 = new HPTimer(GlobalVar.MainPeriod);
             mmTimer1.Ticked += new EventHandler(mmTimer1_Ticked);
             mmTimer1.Start();
             // 打开高精度定时器2
@@ -95,28 +95,40 @@ namespace CLS_II
             //mmTimer2.Start();
         }
 
+        private double phase = 0.0;
+        private readonly double phaseIncrement = 2.0 * Math.PI * 1.0 * 0.001 * GlobalVar.MainPeriod; // 10ms增量对应相位变化
+
         private void mmTimer1_Ticked(object sender, EventArgs e)
         {
             // UDP发送任务
-            lock (UdpData.LCSControls)
-            {
-                if (GlobalVar.isSendUdp)
-                {
-                    udpClient.Send(Struct_Func.StructToBytes(UdpData.LCSControls));
-                    JdUdpClient.Instance?.SendTx();
-                }
-            }
-            lock (UdpData.LCSParams)
-            {
-                if (GlobalVar.isUdpConnceted && GlobalVar.isParamChanged)
-                {
-                    GlobalVar.isParamChanged = false;
-                    udpClient.Send(Struct_Func.StructToBytes(UdpData.LCSParams), nPortOut2);
-                }
-            }
+            //lock (UdpData.LCSControls)
+            //{
+            //    if (GlobalVar.isSendUdp)
+            //    {
+            //        udpClient.Send(Struct_Func.StructToBytes(UdpData.LCSControls));
+            //        JdUdpClient.Instance?.SendTx();
+            //    }
+            //}
+            //lock (UdpData.LCSParams)
+            //{
+            //    if (GlobalVar.isUdpConnceted && GlobalVar.isParamChanged)
+            //    {
+            //        GlobalVar.isParamChanged = false;
+            //        udpClient.Send(Struct_Func.StructToBytes(UdpData.LCSParams), nPortOut2);
+            //    }
+            //}
 
+            double value = 10.0 * Math.Sin(phase);  // 计算当前正弦值
+                                                    // 输出结果（可根据实际需求替换为其他输出方式）
+            phase += phaseIncrement;               // 更新相位
+            if (phase >= 2.0 * Math.PI)            // 防止相位过大
+                phase -= 2.0 * Math.PI;
+            ParamData.CtrlIn.jamPos = (float)value;
             // ── 新增：硬实时触发 Param 轮询/写检测 ──
-            OnHiResTick();
+            if (GlobalVar.isUdpConnceted)
+            {
+                OnHiResTick();
+            }
         }
 
         private void mmTimer2_Ticked(object sender, EventArgs e)

@@ -76,7 +76,7 @@ namespace CLS_II
         public event Action<TcFrame> OnUnsolicited;
         public event Action<TcStatus, byte[]> OnFrameError;
 
-        public int TimeoutMs { get; set; } = 20;
+        public int TimeoutMs { get; set; } = 100;
         public int MaxRetries { get; set; } = 1;
         public bool IsRunning => _udp != null;
 
