@@ -40,9 +40,9 @@ namespace CLS_II
         public int PeriodMs;
         public PollMode Mode;
         public TimerType Timer;
-        public int Priority;   // 写队列优先级，值越小越先发（0=最高）
-        // 运行时用，不需要手动填
-        public int Countdown;
+        public int Priority;    // 写队列优先级，值越小越先发（0=最高）
+        public int Countdown;   // 运行时用，不需要手动填
+        public bool FireAndForget;  // 周期写是否忽略 ACK（fire-and-forget）
     }
 
     // =========================================================================
@@ -53,6 +53,7 @@ namespace CLS_II
         public TcSubId Sub;
         public byte[] Payload;
         public int Priority;
+        public bool FireAndForget;
     }
 
     // =========================================================================
@@ -65,7 +66,8 @@ namespace CLS_II
         private static readonly PollEntry[] _pollTable = new PollEntry[]
         {
             // 周期写：CtrlIn，10ms，挂硬实时定时器，最高优先级
-            new PollEntry { Sub=TcSubId.TcLCS_CtrlIn,  PeriodMs=5,   Mode=PollMode.PeriodWrite, Timer=TimerType.HiRes, Priority=0 },
+            new PollEntry { Sub=TcSubId.TcLCS_CtrlIn,  PeriodMs=5,   Mode=PollMode.PeriodWrite, Timer=TimerType.HiRes, Priority=0,
+                            FireAndForget=true},
 
             // 差分写：参数写，硬实时检测（10ms检测周期），高优先级
             new PollEntry { Sub=TcSubId.CLSModel,       PeriodMs=100,   Mode=PollMode.DiffWrite,   Timer=TimerType.Soft, Priority=1 },
@@ -120,7 +122,7 @@ namespace CLS_II
                 switch (e.Mode)
                 {
                     case PollMode.PeriodWrite:
-                        EnqueueWrite(e.Sub, e.Priority);
+                        EnqueueWrite(e.Sub, e.Priority, e.FireAndForget);
                         break;
 
                     case PollMode.DiffWrite:
@@ -185,7 +187,7 @@ namespace CLS_II
         // =========================================================================
         //  入写队列
         // =========================================================================
-        private void EnqueueWrite(TcSubId sub, int priority)
+        private void EnqueueWrite(TcSubId sub, int priority, bool fireAndForget = false)
         {
             byte[] payload;
             switch (sub)
@@ -208,7 +210,7 @@ namespace CLS_II
                 case TcSubId.UdpParamCfg: payload = Struct_Func.StructToBytes(ParamData.UdpParam_Cfg); break;
                 default: return;
             }
-            _writeQueue.Enqueue(new WriteJob { Sub = sub, Payload = payload, Priority = priority });
+            _writeQueue.Enqueue(new WriteJob { Sub = sub, Payload = payload, Priority = priority, FireAndForget = fireAndForget });
         }
 
         // =========================================================================
@@ -246,6 +248,14 @@ namespace CLS_II
                     if (ct.IsCancellationRequested) break;
                     try
                     {
+                        if (job.FireAndForget)
+                        {
+                            _ = ParamUdpClient.Instance
+                                .WriteAsync(job.Sub, job.Payload)
+                                .ConfigureAwait(false);
+                            // 不调用 UpdateSnap，CtrlIn 本来就不维护快照
+                            continue;
+                        }
                         var resp = await ParamUdpClient.Instance
                             .WriteAsync(job.Sub, job.Payload)
                             .ConfigureAwait(false);
@@ -276,6 +286,115 @@ namespace CLS_II
             Debug.WriteLine("[WriteQueue] loop stopped");
         }
 
+        private void ConsumeWriteQueueOnce()
+        {
+            var batch = new List<WriteJob>();
+            while (_writeQueue.TryDequeue(out var job))
+                batch.Add(job);
+            if (batch.Count == 0) return;
+
+            // 同 SubID 去重
+            var deduped = new Dictionary<TcSubId, WriteJob>();
+            foreach (var j in batch)
+                deduped[j.Sub] = j;
+
+            var toSend = deduped.Values.OrderBy(j => j.Priority).ToList();
+
+            // ★ FireAndForget（CtrlIn）：立即并发发出
+            foreach (var job in toSend.Where(j => j.FireAndForget))
+                _ = SendWriteJobAsync(job);
+
+            // ★ 需要ACK的（DiffWrite）：交给串行队列，每次只发1个
+            foreach (var job in toSend.Where(j => !j.FireAndForget))
+                _serialWriteQueue.Enqueue(job);
+
+            // 如果串行发送链路空闲，触发下一个
+            DrainSerialQueue();
+        }
+
+        // 串行发送：同时只有1个 Task 在飞行
+        private int _serialBusy = 0;  // 0=空闲，1=忙
+        private readonly ConcurrentQueue<WriteJob> _serialWriteQueue = new ConcurrentQueue<WriteJob>();
+
+        private void DrainSerialQueue()
+        {
+            if (_serialWriteQueue.IsEmpty) return;
+            if (Interlocked.CompareExchange(ref _serialBusy, 1, 0) != 0) return; // 已有在途
+
+            if (!_serialWriteQueue.TryDequeue(out var job))
+            {
+                Interlocked.Exchange(ref _serialBusy, 0);
+                return;
+            }
+            _ = SendSerialJobAsync(job);
+        }
+
+        private async Task SendSerialJobAsync(WriteJob job)
+        {
+            try
+            {
+                var resp = await ParamUdpClient.Instance
+                    .WriteAsync(job.Sub, job.Payload)
+                    .ConfigureAwait(false);
+
+                if (!IsErrFrame(resp, $"Write_{job.Sub}"))
+                {
+                    UpdateSnap(job.Sub, job.Payload);
+                    Debug.WriteLine($"[Write] {job.Sub} ok ✅");
+                }
+            }
+            catch (TimeoutException)
+            {
+                Debug.WriteLine($"[Write] {job.Sub} timeout, will retry next diff");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[Write] {job.Sub} error: {ex.Message}");
+            }
+            finally
+            {
+                // ★ 发完（无论成功失败）释放锁，再触发下一个
+                Interlocked.Exchange(ref _serialBusy, 0);
+                DrainSerialQueue();
+            }
+        }
+
+        private async Task SendWriteJobAsync(WriteJob job)
+        {
+            try
+            {
+                // ★ FireAndForget：只发不等，零 ThreadPool 挂起
+                if (job.FireAndForget)
+                {
+                    await ParamUdpClient.Instance.SendOnlyAsync(job.Sub, job.Payload)
+                        .ConfigureAwait(false);
+                    return;
+                }
+
+                var resp = await ParamUdpClient.Instance
+                    .WriteAsync(job.Sub, job.Payload)
+                    .ConfigureAwait(false);
+
+                if (!IsErrFrame(resp, $"Write_{job.Sub}"))
+                {
+                    UpdateSnap(job.Sub, job.Payload);
+                    Debug.WriteLine($"[Write] {job.Sub} ok ✅");
+                }
+                else
+                {
+                    Debug.WriteLine($"[Write] {job.Sub} ERR, snap not updated");
+                }
+            }
+            catch (TimeoutException)
+            {
+                Debug.WriteLine($"[Write] {job.Sub} timeout, will retry next diff");
+                // 不更新快照 → 下次 diff 自动重试
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[Write] {job.Sub} error: {ex.Message}");
+            }
+        }
         // =========================================================================
         //  写成功后更新快照
         // =========================================================================
@@ -402,17 +521,17 @@ namespace CLS_II
 
             _pollCts = new CancellationTokenSource();
             _pollTask = Task.Run(() => SoftPollLoopAsync(_pollCts.Token));
-            _writeTask = Task.Run(() => WriteQueueLoopAsync(_pollCts.Token));
+            //_writeTask = Task.Run(() => WriteQueueLoopAsync(_pollCts.Token));
         }
 
         private void StopPollAndWrite()
         {
             try { _pollCts?.Cancel(); } catch { }
             try { _pollTask?.Wait(200); } catch { }
-            try { _writeTask?.Wait(200); } catch { }
+            //try { _writeTask?.Wait(200); } catch { }
             _pollCts = null;
             _pollTask = null;
-            _writeTask = null;
+            //_writeTask = null;
         }
     }
 }

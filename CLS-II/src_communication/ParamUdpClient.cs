@@ -148,6 +148,18 @@ namespace CLS_II
         public Task<TcFrame> SavePersistAsync(CancellationToken ct = default)
             => RequestAsync(TcCmd.SAVE_PERSIST, TcSubId.ALL, ReadOnlyMemory<byte>.Empty, ct: ct);
 
+        /// <summary>
+        /// 只发不等：周期写控制量（CtrlIn）专用，不注册 _pending，不等 ACK。
+        /// SeqNo 正常递增，不影响其他请求。
+        /// </summary>
+        public async Task SendOnlyAsync(TcSubId sub, ReadOnlyMemory<byte> payload)
+        {
+            if (_udp == null) return;
+            ushort seq = NextSeq();
+            byte[] frame = TcCodec.Build(_deviceId, TcCmd.WRITE_REQ, sub, seq, payload.Span);
+            await _udp.SendAsync(frame, frame.Length, _server).ConfigureAwait(false);
+        }
+
         private async Task<TcFrame> RequestAsync(TcCmd cmd, TcSubId sub,
                                                   ReadOnlyMemory<byte> payload,
                                                   ushort? seqOverride = null,

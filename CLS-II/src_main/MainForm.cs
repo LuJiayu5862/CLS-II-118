@@ -86,13 +86,13 @@ namespace CLS_II
             timer_Base.Enabled = true;
             timer_Base.Start();
             // 打开高精度定时器1
-            mmTimer1 = new HPTimer(GlobalVar.MainPeriod);
+            mmTimer1 = new HPTimer(GlobalVar.MainPeriod);   // 5ms，用于UDP硬实时读写
             mmTimer1.Ticked += new EventHandler(mmTimer1_Ticked);
             mmTimer1.Start();
             // 打开高精度定时器2
-            mmTimer2 = new HPTimer(20);
+            mmTimer2 = new HPTimer(GlobalVar.MainPeriod2);  // 1ms，用于Param写队列周期唤醒
             mmTimer2.Ticked += new EventHandler(mmTimer2_Ticked);
-            //mmTimer2.Start();
+            mmTimer2.Start();
         }
 
         private double phase = 0.0;
@@ -133,7 +133,8 @@ namespace CLS_II
 
         private void mmTimer2_Ticked(object sender, EventArgs e)
         {
-            
+            if (ParamUdpClient.Instance == null) return;
+            ConsumeWriteQueueOnce();
         }
 
         private void languageToolStripMenuItem_Click(object sender, EventArgs e)

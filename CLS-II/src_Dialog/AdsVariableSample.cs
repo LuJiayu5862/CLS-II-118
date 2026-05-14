@@ -29,7 +29,7 @@ namespace CLS_II
 
             this._ChannelCount = ChannelCount;
 
-            SetUDPTreeNode(UDPItem1, UDPStruct1);
+            //SetUDPTreeNode(UDPItem1, UDPStruct1);
             SetParamTreeNode();
         }
 

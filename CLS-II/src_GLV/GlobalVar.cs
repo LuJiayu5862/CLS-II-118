@@ -23,6 +23,7 @@ namespace CLS_II
         public static bool isProjectFileChanged = false;
         public static bool isTmpProjectFile = false;
         public static readonly int MainPeriod = 5;
+        public static readonly int MainPeriod2 = 1;
 
         public static string ProjectFile = string.Empty;
         public static string DeviceName = "Untitled Device";
