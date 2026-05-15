@@ -42,8 +42,8 @@
             this.toolStripLabel2 = new System.Windows.Forms.ToolStripLabel();
             this.refreshToolStripButton = new System.Windows.Forms.ToolStripButton();
             this.toolStripSeparator4 = new System.Windows.Forms.ToolStripSeparator();
-            this.writeToolStripButton = new System.Windows.Forms.ToolStripButton();
             this.writeAllToolStripButton1 = new System.Windows.Forms.ToolStripButton();
+            this.writeToolStripButton = new System.Windows.Forms.ToolStripButton();
             this.dataGridView1 = new System.Windows.Forms.DataGridView();
             this.VarName = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.Scope = new System.Windows.Forms.DataGridViewCheckBoxColumn();
@@ -54,7 +54,6 @@
             this.Port = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.Comment = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.timer1 = new System.Windows.Forms.Timer(this.components);
-            this.textBox1 = new System.Windows.Forms.TextBox();
             this.timer2 = new System.Windows.Forms.Timer(this.components);
             this.toolStrip1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.dataGridView1)).BeginInit();
@@ -144,14 +143,6 @@
             this.toolStripSeparator4.Name = "toolStripSeparator4";
             resources.ApplyResources(this.toolStripSeparator4, "toolStripSeparator4");
             // 
-            // writeToolStripButton
-            // 
-            this.writeToolStripButton.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
-            this.writeToolStripButton.Image = global::CLS_II.Properties.Resources.run_in;
-            resources.ApplyResources(this.writeToolStripButton, "writeToolStripButton");
-            this.writeToolStripButton.Name = "writeToolStripButton";
-            this.writeToolStripButton.Click += new System.EventHandler(this.writeToolStripButton_Click);
-            // 
             // writeAllToolStripButton1
             // 
             this.writeAllToolStripButton1.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
@@ -159,6 +150,14 @@
             resources.ApplyResources(this.writeAllToolStripButton1, "writeAllToolStripButton1");
             this.writeAllToolStripButton1.Name = "writeAllToolStripButton1";
             this.writeAllToolStripButton1.Click += new System.EventHandler(this.writeAllToolStripButton1_Click);
+            // 
+            // writeToolStripButton
+            // 
+            this.writeToolStripButton.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
+            this.writeToolStripButton.Image = global::CLS_II.Properties.Resources.run_in;
+            resources.ApplyResources(this.writeToolStripButton, "writeToolStripButton");
+            this.writeToolStripButton.Name = "writeToolStripButton";
+            this.writeToolStripButton.Click += new System.EventHandler(this.writeToolStripButton_Click);
             // 
             // dataGridView1
             // 
@@ -189,11 +188,7 @@
             this.dataGridView1.RowTemplate.Height = 27;
             this.dataGridView1.CellEndEdit += new System.Windows.Forms.DataGridViewCellEventHandler(this.dataGridView1_CellEndEdit);
             this.dataGridView1.CellValidating += new System.Windows.Forms.DataGridViewCellValidatingEventHandler(this.dataGridView1_CellValidating);
-            this.dataGridView1.CurrentCellChanged += new System.EventHandler(this.dataGridView1_CurrentCellChanged);
             this.dataGridView1.CurrentCellDirtyStateChanged += new System.EventHandler(this.dataGridView1_CurrentCellDirtyStateChanged);
-            this.dataGridView1.Scroll += new System.Windows.Forms.ScrollEventHandler(this.dataGridView1_Scroll);
-            this.dataGridView1.KeyDown += new System.Windows.Forms.KeyEventHandler(this.dataGridView1_KeyDown);
-            this.dataGridView1.MouseClick += new System.Windows.Forms.MouseEventHandler(this.dataGridView1_MouseClick);
             // 
             // VarName
             // 
@@ -258,14 +253,6 @@
             // 
             this.timer1.Tick += new System.EventHandler(this.timer1_Tick);
             // 
-            // textBox1
-            // 
-            this.textBox1.BackColor = System.Drawing.Color.Yellow;
-            this.textBox1.BorderStyle = System.Windows.Forms.BorderStyle.None;
-            resources.ApplyResources(this.textBox1, "textBox1");
-            this.textBox1.Name = "textBox1";
-            this.textBox1.KeyDown += new System.Windows.Forms.KeyEventHandler(this.textBox1_KeyDown);
-            // 
             // timer2
             // 
             this.timer2.Tick += new System.EventHandler(this.timer2_Tick);
@@ -274,7 +261,6 @@
             // 
             resources.ApplyResources(this, "$this");
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.Controls.Add(this.textBox1);
             this.Controls.Add(this.dataGridView1);
             this.Controls.Add(this.toolStrip1);
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.None;
@@ -306,7 +292,6 @@
         private System.Windows.Forms.ToolStripButton writeToolStripButton;
         private System.Windows.Forms.ToolStripButton writeAllToolStripButton1;
         private System.Windows.Forms.Timer timer1;
-        private System.Windows.Forms.TextBox textBox1;
         private System.Windows.Forms.Timer timer2;
         private System.Windows.Forms.DataGridViewTextBoxColumn VarName;
         private System.Windows.Forms.DataGridViewCheckBoxColumn Scope;

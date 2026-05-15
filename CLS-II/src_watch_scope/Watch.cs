@@ -65,31 +65,13 @@ namespace CLS_II
 
             // 双缓冲防止闪烁
             dataGridView1.DoubleBufferedDataGirdView(true);
-            dataGridView1.Controls.Add(textBox1);
 
-            // 隐藏
-            ;
+            // 原生编辑：直接打字即可进入编辑模式
+            dataGridView1.EditMode = DataGridViewEditMode.EditOnKeystroke;
         }
 
         private void timer1_Tick(object sender, EventArgs e)
         {
-            if (!isTextBoxHide1)
-            {
-                isTextBoxHide1 = true;
-                return;
-            }
-            else
-            {
-                if (!isTextBoxHide2)
-                {
-                    isTextBoxHide2 = true;
-                    dataGridView1.CurrentCell = null;
-                    textBox1.Visible = false;
-                    return;
-                }
-            }
-            if (textBox1.Visible)
-                textBox1.Focus();
             // 连接成功后，启用10ms定时器
             if (GlobalVar.isUdpConnceted)
             {
@@ -99,37 +81,24 @@ namespace CLS_II
             {
                 mmTimer1.Stop();
             }
-            //if (GlobalVar.isUdpConnceted)
-            //{
-            //    if (!this._isAdsConnected)
-            //    {
-            //        mmTimer1.Start();
-            //        InitADS();
-            //    }
-            //    this._isAdsConnected = true;
-            //}
-            //else
-            //{
-            //    if (this._isAdsConnected)
-            //    {
-            //        mmTimer1.Stop();
-            //        DisposeADS();
-            //        for (int i = 0; i < dataGridView1.Rows.Count; i++)
-            //        {
-            //            dataGridView1.Rows[i].Cells[(int)Columns.Value].Value = "";
-            //            dataGridView1.Rows[i].DefaultCellStyle.BackColor = SystemColors.Window;
-            //        }
-            //        this.isWatchChanged = false;
-            //    }
-            //    this._isAdsConnected = false;
-            //}             
+
             if (this.isWatchChanged)
             {
                 this.isWatchChanged = false;
+                // 获取当前正在编辑的行号（-1 表示无编辑）
+                int editingRow = -1;
+                if (dataGridView1.IsCurrentCellInEditMode && dataGridView1.CurrentCell != null)
+                {
+                    int col = dataGridView1.CurrentCell.ColumnIndex;
+                    if (col == (int)Columns.NextValue || col == (int)Columns.Name)
+                        editingRow = dataGridView1.CurrentCell.RowIndex;
+                }
                 lock (this.records)
                 {
                     for (int i = 0; i < dataGridView1.Rows.Count; i++)
                     {
+                        // 正在编辑的行：跳过整行 UI 刷新，保护用户输入
+                        if (i == editingRow) continue;
                         dataGridView1.Rows[i].Cells[(int)Columns.Value].Value = this.records[i].Value;
 
                         // ── 行级背景色（Not Found 优先）──
@@ -273,9 +242,6 @@ namespace CLS_II
                             _highlightCountdown = new int[WatchConfig.VarietyInfos.Count];
                         }
                     }
-                    //InitADS();
-                    dataGridView1.CurrentCell = null;
-                    textBox1.Visible = false;
                 }                          
             }  
         }
@@ -288,7 +254,6 @@ namespace CLS_II
                 {
                     dataGridView1.Rows.Clear();
                     this.records.Clear();
-                    textBox1.Visible = false;
                     _highlightCountdown = new int[0];
                     //DisposeADS();
                 }
@@ -348,7 +313,6 @@ namespace CLS_II
                 }
                 //dataGridView1.DataSource = new BindingList<WatchConfig._VarietyInfo>(WatchConfig.VarietyInfos);
                 dataGridView1.CurrentCell = null;
-                textBox1.Visible = false;
                 // 初始化高亮倒计时数组
                 _highlightCountdown = new int[WatchConfig.VarietyInfos.Count];
                 this._isInited = true;
@@ -439,9 +403,6 @@ namespace CLS_II
                     if (dataGridView1.EditingControl != null)
                     {
                         dataGridView1.EditingControl.Text = myToString(dataGridView1.CurrentCell.Value);
-                        textBox1.Text = dataGridView1.EditingControl.Text;
-                        textBox1.Visible = true;
-                        textBox1.Focus();
                         e.Cancel = true;
                     }
                 }
@@ -468,10 +429,6 @@ namespace CLS_II
                                     dataGridView1.EditingControl.Text = dataGridView1.CurrentCell.Value.ToString();
                                     if (dataGridView1.EditingControl != null)
                                     {
-                                        dataGridView1.EditingControl.Text = myToString(dataGridView1.CurrentCell.Value);
-                                        textBox1.Text = dataGridView1.EditingControl.Text;
-                                        textBox1.Visible = true;
-                                        textBox1.Focus();
                                         e.Cancel = true;
                                     }
                                     break;
@@ -528,10 +485,6 @@ namespace CLS_II
                             dataGridView1.Rows[e.RowIndex].ErrorText = "Bad input.";
                         if (dataGridView1.EditingControl != null)
                         {
-                            dataGridView1.EditingControl.Text = myToString(dataGridView1.CurrentCell.Value);
-                            textBox1.Text = dataGridView1.EditingControl.Text;
-                            textBox1.Visible = true;
-                            textBox1.Focus();
                             e.Cancel = true;
                         }
                     }
@@ -549,10 +502,6 @@ namespace CLS_II
                             dataGridView1.Rows[e.RowIndex].ErrorText = "Bad input.";
                         if (dataGridView1.EditingControl != null)
                         {
-                            dataGridView1.EditingControl.Text = myToString(dataGridView1.CurrentCell.Value);
-                            textBox1.Text = dataGridView1.EditingControl.Text;
-                            textBox1.Visible = true;
-                            textBox1.Focus();
                             e.Cancel = true;
                         }
                     }
@@ -570,10 +519,6 @@ namespace CLS_II
                             dataGridView1.Rows[e.RowIndex].ErrorText = "Bad input.";
                         if (dataGridView1.EditingControl != null)
                         {
-                            dataGridView1.EditingControl.Text = myToString(dataGridView1.CurrentCell.Value);
-                            textBox1.Text = dataGridView1.EditingControl.Text;
-                            textBox1.Visible = true;
-                            textBox1.Focus();
                             e.Cancel = true;
                         }
                     }
@@ -608,29 +553,6 @@ namespace CLS_II
             }
         }
 
-        private void RedrawTextBox()
-        {
-            if (dataGridView1.CurrentCell is null)
-                return;
-            DataGridViewCell currentCell = dataGridView1.CurrentCell;
-            if (currentCell.ColumnIndex == (int)Columns.NextValue || currentCell.ColumnIndex == (int)Columns.Name)
-            {
-                if (textBox1.Visible)
-                {
-                    int columnIndex = dataGridView1.CurrentCell.ColumnIndex;
-                    int rowIndex = dataGridView1.CurrentCell.RowIndex;
-                    Rectangle rect = dataGridView1.GetCellDisplayRectangle(columnIndex, rowIndex, false);
-
-                    textBox1.Left = rect.Left;
-                    textBox1.Top = rect.Top;
-                    textBox1.Width = rect.Width - 1;
-                    textBox1.Height = rect.Height - 1;
-                    textBox1.Visible = true;
-                    textBox1.Focus();
-                }
-            }
-        }
-
         private void dataGridView1_CurrentCellChanged(object sender, EventArgs e)
         {
             //if (dataGridView1.CurrentCell is null)
@@ -658,92 +580,6 @@ namespace CLS_II
             //{
             //    textBox1.Visible = false;
             //}
-        }
-
-        private void textBox1_KeyDown(object sender, KeyEventArgs e)
-        {
-            if (e.KeyCode == Keys.Enter)
-            {             
-                if (dataGridView1.CurrentCell != null)
-                    dataGridView1.CurrentCell.Value = textBox1.Text;
-                e.SuppressKeyPress = true;
-            }
-        }
-
-        private void dataGridView1_KeyDown(object sender, KeyEventArgs e)
-        {
-            if (dataGridView1.CurrentCell is null)
-                return;
-            DataGridViewCell currentCell = dataGridView1.CurrentCell;
-            if (currentCell.ColumnIndex == (int)Columns.NextValue)
-            {
-                if (e.KeyCode == Keys.Enter)
-                {
-                    if (dataGridView1.CurrentCell != null)
-                        dataGridView1.CurrentCell.Value = textBox1.Text;
-                    e.SuppressKeyPress = true;
-                }
-            }
-        }
-
-        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
-        {
-            if (keyData == Keys.Enter && textBox1.Visible)
-            {
-                if (dataGridView1.CurrentCell != null)
-                {
-                    dataGridView1.BeginEdit(true);
-                    //if (myToString(dataGridView1.Rows[dataGridView1.CurrentCell.RowIndex].Cells[(int)Columns.Category].Value) == "ADS")
-                        dataGridView1.EditingControl.Text = textBox1.Text;
-                }
-                textBox1.Visible = false;
-            }
-            else if (keyData == Keys.Escape && textBox1.Visible)
-            {
-                textBox1.Visible = false;
-            }
-
-            return base.ProcessCmdKey(ref msg, keyData);
-        }
-
-        private void dataGridView1_MouseClick(object sender, MouseEventArgs e)
-        {
-            //DataGridViewCell currentCell = dataGridView1.CurrentCell;
-            //if (currentCell is null)
-            //{
-
-            //    return;
-            //}
-            if (dataGridView1.CurrentCell is null)
-            {
-                textBox1.Visible = false;
-                return;
-            }
-            DataGridViewCell currentCell = dataGridView1.CurrentCell;
-            if (currentCell.ColumnIndex == (int)Columns.NextValue || currentCell.ColumnIndex == (int)Columns.Name)
-            {
-                int columnIndex = dataGridView1.CurrentCell.ColumnIndex;
-                int rowIndex = dataGridView1.CurrentCell.RowIndex;
-                Rectangle rect = dataGridView1.GetCellDisplayRectangle(columnIndex, rowIndex, false);
-
-                textBox1.Left = rect.Left;
-                textBox1.Top = rect.Top;
-                textBox1.Width = rect.Width - 1;
-                textBox1.Height = rect.Height - 1;
-                string consultingRoom = myToString(dataGridView1.Rows[rowIndex].Cells[columnIndex].Value);
-                textBox1.Text = consultingRoom;
-                textBox1.Visible = true;
-                textBox1.Focus();
-            }
-            else
-            {
-                textBox1.Visible = false;
-            }
-        }
-
-        private void dataGridView1_Scroll(object sender, ScrollEventArgs e)
-        {
-            RedrawTextBox();
         }
 
         private void writeAllToolStripButton1_Click(object sender, EventArgs e)
