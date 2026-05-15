@@ -1,8 +1,9 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
 using System.Drawing;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -187,7 +188,7 @@ namespace CLS_II
 
         private void CloseForm(Panel sender)
         {
-            //遍历spContainer.Panel2中的控件，如果存夺Form控件，则将它关闭。
+            //遍历spContainer.Panel2中的控件，如果存夿Form控件，则将它关闭。
             foreach (Control item in sender.Controls)
             {
                 if (item is Form)//如果是Form控件，就将它关闭掉
@@ -407,6 +408,11 @@ namespace CLS_II
             treeView1.ExpandAll();
 
             toolStrip_UDP.Visible = true;
+
+            // 任务3：xrp 加载后将 config 文件路径重定位到 xrp 目录下的 config\ 子文件夹
+            // WatchConfig、JdConfig、ParamConfig 与 xrp 共同迁移和备份
+            string xrpDir = Path.GetDirectoryName(ProjectFile);
+            MainConfig.RelocateConfigPaths(xrpDir);
         }
 
         private void LoadTreeView2(string DeviceName)
