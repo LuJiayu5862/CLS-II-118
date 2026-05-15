@@ -129,64 +129,64 @@
     <value>Magenta</value>
   </data>
   <data name="addToolStripButton.Size" type="System.Drawing.Size, System.Drawing">
-    <value>34, 24</value>
+    <value>34, 33</value>
   </data>
   <data name="addToolStripButton.Text" xml:space="preserve">
     <value>添加</value>
   </data>
   <data name="toolStripSeparator1.Size" type="System.Drawing.Size, System.Drawing">
-    <value>6, 29</value>
+    <value>6, 38</value>
   </data>
   <data name="deleteToolStripButton.ImageTransparentColor" type="System.Drawing.Color, System.Drawing">
     <value>Magenta</value>
   </data>
   <data name="deleteToolStripButton.Size" type="System.Drawing.Size, System.Drawing">
-    <value>34, 24</value>
+    <value>34, 33</value>
   </data>
   <data name="deleteToolStripButton.Text" xml:space="preserve">
     <value>删除</value>
   </data>
   <data name="toolStripSeparator2.Size" type="System.Drawing.Size, System.Drawing">
-    <value>6, 29</value>
+    <value>6, 38</value>
   </data>
   <data name="clearToolStripButton.ImageTransparentColor" type="System.Drawing.Color, System.Drawing">
     <value>Magenta</value>
   </data>
   <data name="clearToolStripButton.Size" type="System.Drawing.Size, System.Drawing">
-    <value>34, 24</value>
+    <value>34, 33</value>
   </data>
   <data name="clearToolStripButton.Text" xml:space="preserve">
     <value>清除全部</value>
   </data>
   <data name="toolStripSeparator3.Size" type="System.Drawing.Size, System.Drawing">
-    <value>6, 29</value>
+    <value>6, 38</value>
   </data>
   <data name="toolStripLabel1.Size" type="System.Drawing.Size, System.Drawing">
-    <value>91, 24</value>
+    <value>91, 33</value>
   </data>
   <data name="toolStripLabel1.Text" xml:space="preserve">
     <value>更新方式 :</value>
   </data>
   <data name="toolStripLabel2.Size" type="System.Drawing.Size, System.Drawing">
-    <value>0, 24</value>
+    <value>0, 33</value>
   </data>
   <data name="refreshToolStripButton.ImageTransparentColor" type="System.Drawing.Color, System.Drawing">
     <value>Magenta</value>
   </data>
   <data name="refreshToolStripButton.Size" type="System.Drawing.Size, System.Drawing">
-    <value>34, 24</value>
+    <value>34, 33</value>
   </data>
   <data name="refreshToolStripButton.Text" xml:space="preserve">
     <value>单次刷新</value>
   </data>
   <data name="toolStripSeparator4.Size" type="System.Drawing.Size, System.Drawing">
-    <value>6, 29</value>
+    <value>6, 38</value>
   </data>
   <data name="writeAllToolStripButton1.ImageTransparentColor" type="System.Drawing.Color, System.Drawing">
     <value>Magenta</value>
   </data>
   <data name="writeAllToolStripButton1.Size" type="System.Drawing.Size, System.Drawing">
-    <value>34, 24</value>
+    <value>34, 33</value>
   </data>
   <data name="writeAllToolStripButton1.Text" xml:space="preserve">
     <value>写入全部准备值</value>
@@ -195,7 +195,7 @@
     <value>Magenta</value>
   </data>
   <data name="writeToolStripButton.Size" type="System.Drawing.Size, System.Drawing">
-    <value>34, 24</value>
+    <value>34, 33</value>
   </data>
   <data name="writeToolStripButton.Text" xml:space="preserve">
     <value>写入选中准备值</value>
@@ -205,13 +205,13 @@
     <value>False</value>
   </data>
   <data name="toolStrip1.Location" type="System.Drawing.Point, System.Drawing">
-    <value>0, 115</value>
+    <value>0, 106</value>
   </data>
   <data name="toolStrip1.Padding" type="System.Windows.Forms.Padding, System.Windows.Forms">
     <value>0, 0, 3, 0</value>
   </data>
   <data name="toolStrip1.Size" type="System.Drawing.Size, System.Drawing">
-    <value>977, 29</value>
+    <value>977, 38</value>
   </data>
   <data name="toolStrip1.TabIndex" type="System.Int32, mscorlib">
     <value>0</value>
@@ -340,7 +340,7 @@
     <value>62</value>
   </data>
   <data name="dataGridView1.Size" type="System.Drawing.Size, System.Drawing">
-    <value>977, 115</value>
+    <value>977, 106</value>
   </data>
   <data name="dataGridView1.TabIndex" type="System.Int32, mscorlib">
     <value>1</value>

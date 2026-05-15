@@ -1,8 +1,8 @@
 [Device]
-Name=Untitled Device
+Name=PC-A05F27
 IP=127.0.0.1
-AmsNetID=127.0.0.1.1.1
-ChannelCount=8
+AmsNetID=105.160.95.39.1.1
+ChannelCount=1
 [AdsChannel1]
 Enabled=False
 Name=Untitled1
