@@ -219,4 +219,3 @@ CLS-II/
 2. **`UdpConfig.cs` / `UdpTest.cs`**：下轮废弃前先完整读取，`HandleTime` 逻辑必须移植
 3. **`GlobalVar.cs`**：`szRemoteHost`/`TotalChannels` 等字段在其他地方可能仍有引用，清理前需全局搜索
 4. **config 文件夹**：WatchConfig.ini / ProjectConfig.ini 迁移涉及 `WatchConfig.SetDefaultWatchConfigFile()` 的调用时机，需确认 xrp 文件路径已知时才能确定 config 路径
-5. **textBox1**：已从 Watch.cs 代码中全部清除引用，用户需在 VS 设计器里手动删除控件本身
