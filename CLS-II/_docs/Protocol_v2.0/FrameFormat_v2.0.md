@@ -94,6 +94,7 @@ Offset(from end)  Size  字段    说明
 | `0x10`    | `0x90`    | GET_PARAM_DICT    | 请求参数表（分页，附 PageIndex）          |
 | `0x11`    | `0x91`    | GET_PARAM_BY_ID   | 查询单个 ParamID 的完整元信息             |
 | `0x12`    | `0x92`    | PARAM_SUBSCRIBE   | 订阅参数变化通知（预留，暂未实装）        |
+| `0x13`    | `0x93`    | GET_ENUM_MAP      | 查询指定 ParamID 的枚举值-文本映射表      |
 
 ### 3.3 数据读写指令族（0x20–0x2F）
 
@@ -121,7 +122,7 @@ Offset(from end)  Size  字段    说明
 ### 4.1 GET_PARAM_DICT 请求（CMD=0x10）
 
 ```
-[PageIndex : UINT 2B]   // 页码，从 0 开始，每页最多 20 条
+[PageIndex : UINT 2B]   // 页码，从 0 开始，每页最多 12 条
 ```
 
 ### 4.2 GET_PARAM_DICT 应答（CMD=0x90）
@@ -129,7 +130,7 @@ Offset(from end)  Size  字段    说明
 ```
 [TotalCount : UINT  2B]   // 参数表总条目数
 [PageIndex  : UINT  2B]   // 本页页码
-[EntryCount : BYTE  1B]   // 本页实际条目数
+[EntryCount : BYTE  1B]   // 本页实际条目数（≤ 12）
 [Entry × EntryCount] :
   [ParamID    : UINT  2B]
   [DataType   : BYTE  1B]   // 见 4.3 DataType 枚举
@@ -137,11 +138,15 @@ Offset(from end)  Size  字段    说明
   [Access     : BYTE  1B]   // 0=RO, 1=RW
   [GroupID    : BYTE  1B]   // 0=不分组
   [CycleClass : BYTE  1B]   // 0=2ms,1=10ms,2=100ms,3=1s,4=手动
+  [Unit       : BYTE[8] 8B] // 定长，UTF-8，不足补0，如 "rpm", "mm/s"
   [NameLen    : BYTE  1B]   // 变量名字节数（UTF-8，最长 32B）
   [Name       : NameLen B]  // 变量名字符串（无 null 结尾）
+  [DescLen    : BYTE  1B]   // 描述字节数（UTF-8，最长 64B，0=无描述）
+  [Desc       : DescLen B]  // 描述字符串（无 null 结尾）
 ```
 
-每条 Entry 固定部分 **9B** + 变长 Name（1~32B），每页 20 条约 200~820B，在 MTU 内安全。
+每条 Entry 固定部分 **17B**（原 9B + Unit 8B）+ 变长 Name（1~32B）+ 变长 Desc（0~64B）。
+每页最多 **12 条**，最坏情况 (17+1+32+1+64)×12 = 1380B，在 1385B MTU 内安全。
 
 当 `FRAG=1` 且 `LAST_FRAG=1` 时表示参数表传输完毕。
 
@@ -164,6 +169,8 @@ Offset(from end)  Size  字段    说明
 | `0x0D` | STRING8   | 8        | STRING(7)        |
 | `0x0E` | STRING16  | 16       | STRING(15)       |
 | `0x0F` | STRING32  | 32       | STRING(31)       |
+| `0x10` | STRING64  | 64       | STRING(63)       |
+| `0x11` | STRING128 | 128      | STRING(127)      |
 
 ### 4.4 GET_PARAM_BY_ID 请求（CMD=0x11）
 
@@ -171,7 +178,24 @@ Offset(from end)  Size  字段    说明
 [ParamID : UINT 2B]   // 查询目标 ParamID
 ```
 
-应答（CMD=0x91）返回单条 Entry，格式同 4.2 中的 Entry 结构。
+应答（CMD=0x91）返回单条 Entry，格式同 4.2 中的 Entry 结构（含 Unit 与 Desc）。
+
+### 4.4b GET_ENUM_MAP 请求（CMD=0x13）
+
+```
+[ParamID : UINT 2B]   // 查询目标 ParamID（需为枚举类型）
+```
+
+应答（CMD=0x93）：
+
+```
+[ParamID  : UINT  2B]
+[MapCount : BYTE  1B]   // 枚举项数
+[Entry × MapCount] :
+  [EnumValue : INT   2B]   // 枚举数值（有符号，兼容负值枚举）
+  [TextLen   : BYTE  1B]
+  [Text      : TextLen B]  // UTF-8，最长 32B
+```
 
 ### 4.5 READ_BY_ID 请求（CMD=0x20）
 
@@ -191,7 +215,7 @@ Offset(from end)  Size  字段    说明
 
 ### 4.7 WRITE_BY_ID 请求（CMD=0x21）
 
-Flags.ACK_REQ 置 1 时主站返回 WRITE_BY_ID_ACK（CMD=0xA1）。
+Flags.ACK_REQ 置 1 时主站返回 WRITE_BY_ID_ACK（CMD=0xA1）。ACK_REQ 默认值由 CycleClass 推断（见 ADR 议题3），可由 `params.json` 覆盖。
 
 ```
 [Count   : BYTE  1B]
@@ -310,11 +334,14 @@ PORT_V1_DATA       = 15000      // v1.1 旧周期通道，不变
 PORT_V1_PARAM      = 5050       // v1.1 Param 通道，不变
 PORT_V2            = 5051       // v2.0 专用端口
 
+PARAM_DICT_PAGE_SIZE = 12       // 每页最多 12 条（原 20，因 Entry 扩展而调整）
+
 DT_BOOL   = 0x01  DT_BYTE   = 0x02  DT_WORD   = 0x03
 DT_INT    = 0x04  DT_UINT   = 0x05  DT_DWORD  = 0x06
 DT_DINT   = 0x07  DT_UDINT  = 0x08  DT_REAL   = 0x09
 DT_LREAL  = 0x0A  DT_LINT   = 0x0B  DT_ULINT  = 0x0C
 DT_STR8   = 0x0D  DT_STR16  = 0x0E  DT_STR32  = 0x0F
+DT_STR64  = 0x10  DT_STR128 = 0x11
 
 ACCESS_RO = 0x00
 ACCESS_RW = 0x01
@@ -324,6 +351,11 @@ CYCLE_10MS  = 0x01
 CYCLE_100MS = 0x02
 CYCLE_1S    = 0x03
 CYCLE_MANUAL= 0x04
+
+// 写入错误诊断（保留 ParamID，只读，GroupID=0）
+PARAMID_WRITE_ERR_COUNT    = 0xFFF0   // WriteErrorCount
+PARAMID_LAST_ERR_PARAMID   = 0xFFF1   // LastErrorParamID
+PARAMID_LAST_ERR_CODE      = 0xFFF2   // LastErrorCode
 ```
 
 ---
@@ -333,8 +365,10 @@ CYCLE_MANUAL= 0x04
 | # | 项目 | 当前设计值 | 需确认原因 |
 |---|------|-----------|------------|
 | 1 | Header Reserved 字段后续用途 | 0x0000 | 是否升级为 SubCMD 或 SessionID？ |
-| 2 | 每页参数表最大条目数 | 20 条 | 需结合最长 Name(32B) 验证不超 MTU |
+| 2 | 每页参数表最大条目数 | 12 条 | 已按扩展后 Entry（17B+变长）重新验算，MTU 安全 |
 | 3 | Trace Buffer 最大点数 | 受主站 RAM 限制 | ST 端 Buffer 数组大小待定 |
 | 4 | TRACE_UPLOAD 每片最大点数 | ≤ 100 | 需结合最多 8 通道 × LREAL(8B) × 100 = 6400B 验证不超 MTU |
 | 5 | 字节序 | Little-Endian | 与 v1.1 实现保持一致，需核对 |
-| 6 | WRITE_BY_ID 无 ACK_REQ 时主站是否静默 | 静默（不回包）| 待用户确认，影响高频写性能 |
+| 6 | WRITE_BY_ID 无 ACK_REQ 时主站是否静默 | 静默（不回包）| 已通过 ADR 议题3 CycleClass 推断规则确认 |
+| 7 | GET_ENUM_MAP 对非枚举类型的行为 | 返回 MapCount=0 | 待确认是否需要返回 ERR 帧 |
+| 8 | Unit 字段不足 8B 时补零方式 | 末尾补 0x00 | 待确认解析端是否统一 trimNull |

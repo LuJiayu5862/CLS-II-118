@@ -91,15 +91,112 @@ GroupID = 0xFF       → 保留
 
 ---
 
-## 议题 3：写操作确认机制 🔲 讨论中
+## 议题 3：写操作确认机制 ✅ 已冻结
 
-（待写入）
+### 问题
+
+`WRITE_BY_ID` 执行后，上位机是否需要确认？若需要，确认策略如何定义？同时，如何为写入错误提供可诊断性？
+
+### 候选方案
+
+| 方案 | 说明 | 优点 | 缺点 |
+|------|------|------|------|
+| A | 全部写操作都要 ACK | 确认率 100% | 高频写（2ms 轴控）带宽翻倍，不可接受 |
+| B | Flags.ACK_REQ 手动控制 | 上位机完全自主 | 需要用户对每个写变量人工判断，配置负担重 |
+| C | 按 CycleClass 自动推断默认策略 + params.json 局部覆盖 | 合理缺省，工程师可微调 | 需维护一个本地 JSON 配置文件 |
+
+### 决策 ✅
+
+**选择方案 C：按 CycleClass 自动推断默认 ACK 策略，再由本地 `params.json` 覆盖。**
+
+### 决策依据与默认推断规则
+
+| CycleClass | 默认 ACK 策略 | 理由 |
+|------------|--------------|------|
+| `CYCLE_2MS` (0x00) | 无 ACK（静默） | 高频轴控写，带宽敏感 |
+| `CYCLE_10MS` (0x01) | 无 ACK（静默） | 中频控制，同上 |
+| `CYCLE_100MS` (0x02) | 有 ACK | 中低频，可接受确认开销 |
+| `CYCLE_1S` (0x03) | 有 ACK | 低频配置写，必须确认 |
+| `CYCLE_MANUAL` (0x04) | 有 ACK | 手动触发写，必须确认 |
+
+`params.json` 中可对任意 `ParamID` 单独设置 `"ack": true/false`，覆盖上述默认值。
+
+### 写入错误诊断变量（保留 ParamID）
+
+为保证写入错误可诊断，保留以下三个诊断 ParamID（只读，不参与分组）：
+
+| ParamID | 名称 | 说明 |
+|---------|------|------|
+| `0xFFF0` | WriteErrorCount | 累计写入错误次数，上电清零 |
+| `0xFFF1` | LastErrorParamID | 最近一次写入错误的 ParamID |
+| `0xFFF2` | LastErrorCode | 最近一次写入错误的错误码 |
+
+这三个变量：Access=RO，GroupID=0（不分组），CycleClass=CYCLE_MANUAL，可通过 `READ_BY_ID` 单独轮询。
 
 ---
 
 ## 议题 4：参数表动态性 🔲 讨论中
 
 （待写入）
+
+---
+
+## 议题 4.5：参数表自描述增强 ✅ 已冻结
+
+### 问题
+
+现有参数表 Entry 仅含 ParamID、DataType、ByteSize、Access、GroupID、CycleClass、Name，缺少单位与描述信息，工程工具（上位机 GUI、自动文档生成）无法仅凭参数表自解释变量语义。同时枚举型变量缺乏枚举值-文本映射查询能力。
+
+### 决策 ✅
+
+**扩展参数表 Entry，新增 Unit（8B 定长）和 Description（变长 ≤ 64B）；新增指令 GET_ENUM_MAP（0x13/0x93）；新增 DataType STRING64/STRING128。**
+
+### Entry 新结构
+
+```
+ParamID    : UINT  2B
+DataType   : BYTE  1B
+ByteSize   : BYTE  1B
+Access     : BYTE  1B
+GroupID    : BYTE  1B
+CycleClass : BYTE  1B
+Unit       : BYTE[8]  8B  // 定长，UTF-8，不足补0，例如 "rpm", "mm/s"
+NameLen    : BYTE  1B
+Name       : NameLen B   // UTF-8，最长 32B
+DescLen    : BYTE  1B
+Desc       : DescLen B   // UTF-8，最长 64B，0=无描述
+```
+
+固定部分从原 9B 增至 **17B**（新增 Unit 8B）；变长部分 Name + Desc 上限 96B。
+每页最大条目数从 20 调整为 **12**，保证最坏情况（17+1+32+1+64=115B × 12=1380B）不超 MTU。
+
+### GET_ENUM_MAP 指令
+
+| CMD (REQ) | CMD (ACK) | 说明 |
+|-----------|-----------|------|
+| `0x13`    | `0x93`    | 查询指定 ParamID 的枚举值-文本映射表 |
+
+REQ Payload：
+```
+[ParamID : UINT 2B]
+```
+
+ACK Payload：
+```
+[ParamID  : UINT  2B]
+[MapCount : BYTE  1B]   // 枚举项数
+[Entry × MapCount] :
+  [EnumValue : INT   2B]   // 枚举数值（有符号）
+  [TextLen   : BYTE  1B]
+  [Text      : TextLen B]  // UTF-8，最长 32B
+```
+
+### 新增 DataType
+
+| 值     | 类型      | ByteSize | TwinCAT ST 对应  |
+|--------|-----------|----------|------------------|
+| `0x10` | STRING64  | 64       | STRING(63)       |
+| `0x11` | STRING128 | 128      | STRING(127)      |
 
 ---
 
