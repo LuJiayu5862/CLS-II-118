@@ -276,10 +276,12 @@ Flags.ACK_REQ 置 1 时主站返回 WRITE_BY_ID_ACK（CMD=0xA1）。ACK_REQ 默�
 ### 4.8 WRITE_BY_ID 应答（CMD=0xA1）
 
 ```
-[Count      : BYTE  1B]
-[ParamID    : UINT  2B] × Count   // 写入的 ParamID
-[WriteResult: BYTE  1B] × Count   // 0=成功, 非0=ErrCode
+[Count : BYTE 1B]
+[Item × Count] :
+  [ParamID : UINT 2B] // 写入的 ParamID，原样返回
+  [WriteResult : BYTE 1B] // 0=成功, 非0=ErrCode（见§五错误码表）
 ```
+每条 Item 固定 **3B**，总 Payload = `1 + Count × 3`（B）。
 
 ### 4.9 READ_GROUP 请求（CMD=0x22）
 
