@@ -1,7 +1,7 @@
 # TcLCS-UDP Protocol v2.0 — 帧格式规范
 
 > **文档状态**：草案（设计讨论中）
-> **最后更新**：2026-05-15
+> **最后更新**：2026-05-16
 > **基于**：TcLCS-UDP Protocol v1.1（Version=0x02）向上扩展
 
 ---
@@ -84,7 +84,7 @@ Offset(from end)  Size  字段    说明
 | `0x02`    | `0x82`    | WRITE_REQ        | 按 SubID 写（v1.1 旧式，兼容保留）        |
 | `0x03`    | `0x83`    | PING / PONG      | 心跳检测                                  |
 | `0x04`    | `0x84`    | SAVE_PERSIST     | 触发持久化保存                            |
-| `0x05`    | `0x85`    | HELLO / HELLO_ACK| 握手（v1.1 定义不变）                     |
+| `0x05`    | `0x85`    | HELLO / HELLO_ACK| 握手（v2.0 扩展 Payload，见 4.0b）        |
 | `0xEE`    | —         | ERR              | 错误响应                                  |
 
 ### 3.2 参数表指令族（0x10–0x1F）
@@ -119,6 +119,54 @@ Offset(from end)  Size  字段    说明
 
 ## 四、Payload 格式详述
 
+### 4.0 PING 请求（CMD=0x03）/ PONG 应答（CMD=0x83）
+
+**PING 请求 Payload：**
+
+```
+[Timestamp_ms : UDINT 4B]   // 上位机发送时刻（毫秒，用于 RTT 计算）
+```
+
+**PONG 应答 Payload：**
+
+```
+[Timestamp_ms : UDINT 4B]   // 原样回传上位机时间戳
+[DictHash     : UINT  2B]   // 当前参数表结构哈希（CRC16/MODBUS）
+```
+
+> **设计意图**：上位机每次 PING 可顺带校验 DictHash，无需额外发起 GET_PARAM_DICT，降低心跳开销。若 DictHash 与本地缓存不一致，则触发参数表重拉。
+
+### 4.0b HELLO 请求（CMD=0x05）/ HELLO_ACK 应答（CMD=0x85）
+
+**HELLO 请求 Payload：**
+
+```
+（Payload 为空，PayloadLen=0）
+```
+
+**HELLO_ACK 应答 Payload：**
+
+```
+[DictHash   : UINT  2B]      // 参数表结构哈希，握手即缓存，无需立即拉取参数表
+[ParamCount : UINT  2B]      // 参数表总条目数
+[FW_Major   : BYTE  1B]      // 固件主版本号（Major 不一致 → 上位机拒绝连接）
+[FW_Minor   : BYTE  1B]      // 固件次版本号（上位机 Minor > 主站 → 降级运行+警告）
+[FW_Patch   : BYTE  1B]      // 固件补丁版本号（差异静默忽略，始终兼容）
+[DevNameLen : BYTE  1B]      // DeviceName 字节数（1~32B）
+[DeviceName : DevNameLen B]  // UTF-8，无 null 结尾；来源：ParamID 0xFFEF
+```
+
+固定部分 **8B** + 变长 DeviceName（1~32B）。
+
+**FirmwareVersion 兼容性规则：**
+
+| 情形 | 上位机行为 |
+|------|-----------|
+| Major 不一致 | 拒绝连接，显示版本不兼容错误 |
+| Minor：上位机 > 主站 | 降级运行，界面显示固件过旧警告 |
+| Minor：上位机 ≤ 主站 | 正常连接 |
+| Patch 任意差异 | 静默忽略，始终兼容 |
+
 ### 4.1 GET_PARAM_DICT 请求（CMD=0x10）
 
 ```
@@ -128,6 +176,7 @@ Offset(from end)  Size  字段    说明
 ### 4.2 GET_PARAM_DICT 应答（CMD=0x90）
 
 ```
+[DictHash   : UINT  2B]   // 参数表结构哈希（CRC16/MODBUS），便于上位机快速失配检出
 [TotalCount : UINT  2B]   // 参数表总条目数
 [PageIndex  : UINT  2B]   // 本页页码
 [EntryCount : BYTE  1B]   // 本页实际条目数（≤ 12）
@@ -190,7 +239,7 @@ Offset(from end)  Size  字段    说明
 
 ```
 [ParamID  : UINT  2B]
-[MapCount : BYTE  1B]   // 枚举项数
+[MapCount : BYTE  1B]   // 枚举项数（非枚举类型返回 MapCount=0）
 [Entry × MapCount] :
   [EnumValue : INT   2B]   // 枚举数值（有符号，兼容负值枚举）
   [TextLen   : BYTE  1B]
@@ -352,10 +401,20 @@ CYCLE_100MS = 0x02
 CYCLE_1S    = 0x03
 CYCLE_MANUAL= 0x04
 
-// 写入错误诊断（保留 ParamID，只读，GroupID=0）
+// 写入错误诊断（保留 ParamID，只读，GroupID=0，CycleClass=MANUAL）
 PARAMID_WRITE_ERR_COUNT    = 0xFFF0   // WriteErrorCount
 PARAMID_LAST_ERR_PARAMID   = 0xFFF1   // LastErrorParamID
 PARAMID_LAST_ERR_CODE      = 0xFFF2   // LastErrorCode
+
+// 设备标识保留 ParamID（只读，GroupID=0，CycleClass=MANUAL）
+PARAMID_DEVICE_NAME        = 0xFFEF   // DeviceName，STRING32，握手时主站读取并填入 HELLO_ACK
+
+// 完整保留区段：0xFFEF ~ 0xFFFF
+// 0xFFEF  DeviceName
+// 0xFFF0  WriteErrorCount
+// 0xFFF1  LastErrorParamID
+// 0xFFF2  LastErrorCode
+// 0xFFF3 ~ 0xFFFF 保留
 ```
 
 ---
@@ -372,3 +431,43 @@ PARAMID_LAST_ERR_CODE      = 0xFFF2   // LastErrorCode
 | 6 | WRITE_BY_ID 无 ACK_REQ 时主站是否静默 | 静默（不回包）| 已通过 ADR 议题3 CycleClass 推断规则确认 |
 | 7 | GET_ENUM_MAP 对非枚举类型的行为 | 返回 MapCount=0 | 待确认是否需要返回 ERR 帧 |
 | 8 | Unit 字段不足 8B 时补零方式 | 末尾补 0x00 | 待确认解析端是否统一 trimNull |
+
+---
+
+## 八、传输场景说明
+
+### 8.1 UDP 主场景
+
+v2.0 协议的**设计基准场景**为 UDP/IP，端口 `5051`。所有 Payload 上限、分页策略均以 UDP MTU（1400B）为准。帧结构、CMD 集合、Payload 格式均按本文档定义执行，无需任何额外封装。
+
+### 8.2 UART 兼容封装（外壳层）
+
+为支持未来串口点对点部署场景（基准波特率 115200 bps），在原始 v2.0 帧外增加 **2B 长度前缀外壳（方案 B1）**。应用层语义与 UDP 场景**完全一致**，不引入新 CMD，不引入 RS-485 地址仲裁，不引入 SLIP 编码。
+
+**UART 封装结构：**
+
+```
+[FrameLen   : UINT  2B]   // 内层 v2.0 完整帧字节数（SOF 到 EOF，含 CRC）
+[v2.0 Frame : FrameLen B] // 原封不动的标准 v2.0 帧
+// 内层结构：SOF(2B) + Header(12B) + Payload + CRC16(2B) + EOF(1B)
+```
+
+**接收端两状态机：**
+
+```
+STATE_WAIT_LEN  → 读取 2B FrameLen
+STATE_RECV_BODY → 读 FrameLen 字节 → CRC 通过则交应用层 / 失败则回 STATE_WAIT_LEN
+```
+
+**UDP vs UART 场景参数对比：**
+
+| 项目 | UDP 场景 | UART 场景 |
+|------|----------|-----------|
+| 最大总帧长（含外壳） | 1400B | 256B |
+| UART 外壳 | 无 | 2B FrameLen |
+| 内层最大帧长 | 1400B | 254B |
+| 最大 Payload | 1385B | 239B（254 - 12 - 3） |
+| 参数表分页建议 | 12 条/页 | 4 条/页 |
+| CMD 集合 | v2.0 完整定义 | 完全相同，不新增专用 CMD |
+| RS-485 地址仲裁 | 不适用 | **不引入**（点对点） |
+| SLIP 编码 | 不适用 | **不引入** |
