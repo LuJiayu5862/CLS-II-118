@@ -1,6 +1,6 @@
 # CLS-II Protocol v2.0 — 设计上下文快照
 
-> **生成时间**：2026-05-16
+> **生成时间**：2026-05-17
 > **仓库**：LuJiayu5862/CLS-II-118
 > **分支**：dev/protocol-v2.0
 > **文档路径**：`CLS-II/_docs/Protocol_v2.0/`
@@ -12,8 +12,8 @@
 
 | 文件 | 状态 |
 |------|------|
-| `ADR_v2.0.md` | ✅ 已全量更新，议题 1~7 全部冻结 |
-| `FrameFormat_v2.0.md` | ✅ 已全量更新（含 PING DictHash、HELLO_ACK、WRITE_GROUP ACK、GET_GROUP_DICT、DictHash 计算章节、UART 章节） |
+| `ADR_v2.0.md` | ✅ 已全量更新，议题 1~7 全部冻结（含 Review Pass 修正） |
+| `FrameFormat_v2.0.md` | ✅ 已全量更新（含 Review Pass 全部 10 项修正） |
 | `README.md` | ✅ 已更新（含 UART 场景说明、保留 ParamID 表、文档列表） |
 | `Protocol_v2.0_Context_Snapshot.md` | ✅ 本文件 |
 | `ParamEntry_DataStructure.md` | 🔲 待编写 |
@@ -58,7 +58,9 @@
 
 `params.json` 可对任意 ParamID 单独设置 `"ack": true/false` 覆盖默认值。
 
-**机制说明**：`Flags.ACK_REQ` 由上位机发帧时动态置位，主站被动响应。适用于 WRITE_BY_ID；WRITE_GROUP 见议题 7。
+**机制**：`Flags.ACK_REQ` 由上位机发帧时动态置位，主站被动响应。适用于 WRITE_BY_ID；WRITE_GROUP 见议题 7。
+
+**多 ParamID 混合 CycleClass**：取所有目标变量中 CycleClass 编号最大（最保守）者的默认 ACK 策略。
 
 **写入错误诊断保留 ParamID（RO，GroupID=0，CycleClass=MANUAL）**：
 
@@ -127,11 +129,13 @@
 GroupID(1B) + CycleClass(1B) + NameLen(1B) + Name(≤32B) + DescLen(1B) + Desc(≤64B)
 ```
 
+**WRITE_GROUP 全量写语义**：必须包含该组所有已注册变量，不支持子集写（子集写用 WRITE_BY_ID）。Count 或 ParamID 不匹配则返回 ERR（0x09/0x0A）。
+
 **ACK_REQ 推断规则统一**：
 
 | 写指令 | 推断来源 | 覆盖方式 |
 |--------|---------|--------|
-| WRITE_BY_ID | ParamID.CycleClass | params.json ParamID 级 |
+| WRITE_BY_ID | ParamID.CycleClass（混合取最保守值） | params.json ParamID 级 |
 | WRITE_GROUP | GROUP_ENTRY.CycleClass | params.json GroupID 级 |
 
 **GROUP_ENTRY 纳入 DictHash**（按 GroupID 升序追加在 PARAM_ENTRY 之后）：
@@ -140,15 +144,26 @@ GroupID(1B) + CycleClass(1B) + NameLen(1B) + Name(NameLen B)
 ```
 参与 Hash：GroupID, CycleClass, NameLen, Name；不参与：DescLen, Desc。
 
+> 注：GROUP_ENTRY.CycleClass **参与** Hash（与 PARAM_ENTRY.CycleClass 不参与 Hash 不同），因为它是 WRITE_GROUP ACK_REQ 推断的唯一来源，变更必须触发重拉。
+
 **未注册 GroupID 缺省行为**：Name=`"Group_0xXX"`，Desc=空，CycleClass=组内最保守值（fallback）。
 
-**使用场景边界**：
+---
 
-| 场景 | 推荐指令 | ACK 行为 |
-|------|---------|--------|
-| 多变量联动控制 | WRITE_GROUP | 由 GROUP_ENTRY.CycleClass 推断 |
-| Watch 窗口手动配置 | WRITE_BY_ID | 低频，默认有 ACK |
-| 单变量波形输出（高频） | WRITE_BY_ID 单条 | params.json 覆盖 ack=false |
+## Review Pass 修正记录（2026-05-17）
+
+| # | 位置 | 修正内容 |
+|---|------|--------|
+| 1 | §4.10 | WRITE_GROUP 明确全量写语义，禁止子集写，不匹配返回 ERR 0x09/0x0A |
+| 2 | §五 ERR | 新增 ErrCode 0x09（GroupID 无效）和 0x0A（变量集不匹配） |
+| 3 | §4.12 | 补充 TRACE_STATUS 请求帧（Payload 为空）说明 |
+| 4 | §2.2 | FRAG 注释扩展为「多包传输场景」，不再限定参数表 |
+| 5 | §4.7 | 补充多 ParamID 混合 CycleClass 时取最保守值的推断规则 |
+| 6 | §4.4c | GET_GROUP_DICT 缺省行为描述移出 ACK 格式块，改为主站处理规则说明 |
+| 7 | §七 | 新增 DictHash 设计取舍说明（PARAM_ENTRY vs GROUP_ENTRY 的 CycleClass 差异化处理理由） |
+| 8 | §4.2 | 补充 FRAG 单页行为（单页不设 FRAG，多页全程设 FRAG，末片加 LAST_FRAG） |
+| 9 | §4.13 | 补充 ChannelCount 不变式（恒等于 TRACE_CONFIG 配置值，不符视为帧错误） |
+| 10 | §2.5 | 修正 ASCII 帧示意图右边界对齐 |
 
 ---
 
