@@ -113,7 +113,7 @@ Desc       : DescLen B     // UTF-8，最长 64B
 
 **UDP 场景每页最大条目数 = 12**（最坏 115B×12=1380B ≤ MTU 1385B）
 
-**GET_ENUM_MAP（CMD 0x13 / ACK 0x93）**：
+**GET_ENUM_MAP（CMD 0x12 / ACK 0x92）**：
 - REQ: `[ParamID: UINT 2B]`
 - ACK: `[ParamID 2B][MapCount 1B][{EnumValue:INT 2B, TextLen 1B, Text≤32B} × MapCount]`
 
@@ -145,7 +145,7 @@ Desc       : DescLen B     // UTF-8，最长 64B
 **FirmwareVersion SemVer 语义**：
 
 | 段 | 触发条件 | 上位机行为 |
-|----|----------|-----------|
+|----|----------|-----------| 
 | Major 不一致 | 帧结构/指令码根本重构 | 拒绝连接 |
 | Minor 上位机 > 主站 | 固件版本较旧 | 降级运行，提示警告 |
 | Minor 上位机 ≤ 主站 | 正常 | 正常连接 |
@@ -172,7 +172,6 @@ Desc       : DescLen B     // UTF-8，最长 64B
 ```
 [FrameLen   : UINT  2B]   // 内层 v2.0 完整帧字节数
 [v2.0 Frame : FrameLen B] // 原封不动的标准 v2.0 帧
-// SOF(2B)+Header(12B)+Payload+CRC16(2B)+EOF(1B)
 ```
 
 **接收端两状态机**：
@@ -185,7 +184,7 @@ STATE_RECV_BODY → 读 FrameLen 字节 → CRC 通过交应用层 / 失败回 W
 **UART 专用约束**：
 
 | 项目 | UDP 场景 | UART 场景 |
-|------|----------|-----------|
+|------|----------|-----------| 
 | 最大总帧长（含外壳） | 1400B | 256B |
 | 最大 Payload | 1385B | 239B（254-12-3）|
 | 参数表分页 | 12 条/页 | 推荐 4 条/页 |
@@ -218,7 +217,7 @@ Desc       : DescLen B  // UTF-8，最长 64B
 - Name → `"Group_0xXX"`（上位机展示用，主站不存储）
 - Desc → 空字符串
 
-**2. 新增指令 GET_GROUP_DICT（0x14 / 0x94）**
+**2. 新增指令 GET_GROUP_DICT（0x13 / 0x93）**
 
 REQ Payload：空（PayloadLen=0）
 
@@ -265,3 +264,67 @@ GroupID(1B) + CycleClass(1B) + NameLen(1B) + Name(NameLen B)
 | 多变量联动控制（Position/Velocity/Torque 等） | WRITE_GROUP | 由 GROUP_ENTRY.CycleClass 推断，高频组默认无 ACK |
 | Watch 窗口手动配置参数 | WRITE_BY_ID | 低频，默认有 ACK，可监控写入失败 |
 | 单变量波形输出（高频跟随） | WRITE_BY_ID 单条 | params.json 覆盖 `"ack": false`，Fire & Forget |
+
+---
+
+## 议题 8：SUBSCRIBE / NOTIFY 推送机制 ✅ 已冻结
+
+### 背景
+上位机 Watch 功能需要订阅任意变量并持续接收更新，若依赖 READ_BY_ID 周期轮询，则每次都需要上位机主动发帧，增加总线负载并提高上位机逻辑复杂度。引入订阅-推送机制后，上位机注册一次，主站周期主动推送，无需轮询。
+
+### 决策
+
+**1. 推送模式：Periodic Only**
+
+当前版本仅支持固定周期推送（`Mode=0x00`）。Deadband 过滤（On-Change / Hybrid 模式）明确**不在 v2.0 实现范围内**，原因如下：
+- 系统为点对点单节点架构，UDP 带宽充裕，无需过滤小波动以节省带宽
+- 高频信号（如 Actual Current）已由 Trace Buffer 专用通道承担，无需 SUBSCRIBE 处理
+- 嵌入式平台（STM32F103）资源有限，避免增加浮点比较与多类型 deadband 实现复杂度
+
+`Mode` 字段作为扩展预留位保留。未来若系统演进至多节点/带宽受限场景，可通过 Minor 版本升级在新 ADR 中引入，完全向后兼容（老上位机永远发送 `Mode=0x00`）。
+
+**2. CMD 分区**
+
+| 区段 | 范围 | 说明 |
+|------|------|------|
+| 订阅管理（C→S） | `0x50~0x52` | PARAM_SUBSCRIBE / PARAM_UNSUBSCRIBE / SUBSCRIBE_CLEAR |
+| 主站主动推送（S→C） | `0x40` | NOTIFY；`0x41~0x4F` 预留给未来告警等主动上报 |
+
+订阅管理指令遵循 REQ\|0x80=ACK 惯例（`0x50→0xD0` 等）。NOTIFY（`0x40`）为主站主动发出帧，无对应 REQ，不遵循该惯例，高位不置 1，语义上属于「主站主动上报」类别。
+
+**3. NOTIFY 帧行为**
+
+- `Flags.ACK_REQ` 恒为 0，上位机静默处理丢包，无需回应
+- 上位机可通过 SeqNum 跳变检测丢包（仅用于诊断，无重传机制）
+
+**4. 断线 / 重连行为**
+
+主站收到 HELLO_REQ（CMD=0x05）时，清除全部订阅槽位。订阅生命周期与连接会话绑定，断线即失效。上位机重连后需重新发起订阅。
+
+**5. 槽位上限：实现端编译宏自行决定**
+
+协议层不强制规定槽位上限，由实现端根据平台资源通过编译宏配置。
+
+推荐值：
+
+| 平台 | MAX_SUB_SLOTS | MAX_SUB_VARS（每槽）| 估算内存占用 |
+|------|--------------|-------------------|------------|
+| 工控机（4GB+） | 32 | 20 | ~4KB |
+| 嵌入式底线（STM32F103，20KB SRAM） | 8 | 8 | ~520B |
+
+**6. Payload 格式**（见 `FrameFormat_v2.0.md` §4.14~§4.17）
+
+| CMD | 名称 | 关键字段 |
+|-----|------|---------|
+| 0x50 / 0xD0 | PARAM_SUBSCRIBE | SubID, Mode, Interval_ms, Count, ParamID列表 |
+| 0x51 / 0xD1 | PARAM_UNSUBSCRIBE | SubID |
+| 0x52 / 0xD2 | SUBSCRIBE_CLEAR | 无 REQ Payload；ACK 返回 ClearedCount |
+| 0x40 | NOTIFY | SubID, Timestamp, Count, Value列表 |
+
+**7. 新增错误码**
+
+| ErrCode | 含义 |
+|---------|------|
+| `0x0B` | 订阅槽位已满（超出平台 MAX_SUB_SLOTS） |
+| `0x0C` | SubID 不存在或已过期 |
+| `0x0D` | 订阅变量数超出单槽上限（超出平台 MAX_SUB_VARS） |
