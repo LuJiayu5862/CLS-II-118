@@ -1,187 +1,254 @@
-# CLS-II Protocol v2.0 — 设计上下文快照
+# TcLCS-UDP Protocol v2.0 — 上下文快照（Context Snapshot）
 
-> **生成时间**：2026-05-17
-> **仓库**：LuJiayu5862/CLS-II-118
-> **分支**：dev/protocol-v2.0
-> **文档路径**：`CLS-II/_docs/Protocol_v2.0/`
-> **用途**：跨 Thread 上下文恢复，直接粘贴到新 Thread 开头即可继续工作。
+> **快照时间**：2026-05-18
+> **适用分支**：`dev/protocol-v2.0`
+> **用途**：新 threading 开始时读取此文件即可恢复完整设计上下文
 
 ---
 
-## 当前文档状态
+## 一、文档结构
 
-| 文件 | 状态 |
-|------|------|
-| `ADR_v2.0.md` | ⚠️ 需更新（议题 3/7 修订 + 议题 9 新增）|
-| `FrameFormat_v2.0.md` | ⚠️ 需更新（§3.3/§4.7/§4.10/§4.4c/§七/§八 修订）|
-| `README.md` | ✅ 已更新 |
-| `Protocol_v2.0_Context_Snapshot.md` | ⚠️ 本文件需更新 |
-| `ParamEntry_DataStructure.md` | 🔲 待编写 |
-| `TraceBuffer_Design.md` | 🔲 待编写 |
-| `CSharp_ParamDictionary.md` | 🔲 待编写 |
-| `Migration_v1.1_to_v2.0.md` | 🔲 待编写 |
+| 文件 | 内容 | 状态 |
+|------|------|------|
+| `ADR_v2.0.md` | 架构决策记录，议题1~12 | ✅ 最新（2026-05-18）|
+| `FrameFormat_v2.0.md` | 帧格式完整规范 | ✅ 最新（2026-05-18）|
+| `README.md` | 设计概要与进度说明 | ⚠️ 待同步议题9~12 |
 
 ---
 
-## 已冻结议题全量摘要
+## 二、已冻结议题完整列表
 
 ### 议题 1：主站变量寻址方案 ✅
-**决策**：PVOID 指针 + MEMCPY。
-- 上电 bInit 周期注册一次：`ParamTable[i].pVar = ADR(变量)`
-- READ → `MEMCPY(pDest, pVar, ByteSize)`
-- WRITE → `MEMCPY(pVar, pSrc, ByteSize)`
-
----
+- **决策**：PVOID 指针 + MEMCPY
+- 上电 bInit 周期注册一次，运行时 O(1) 定位
 
 ### 议题 2：GroupID 语义边界 ✅
-- `GroupID = 0x00` → 不分组，仅支持 READ_BY_ID / WRITE_BY_ID
-- `GroupID = 0x01~0xFE` → 有效分组，支持 READ_GROUP / WRITE_GROUP
-- `GroupID = 0xFF` → 保留
-- 同组变量读取保证原子性（同一 PLC 扫描周期内快照 MEMCPY）
+- 0x00=不分组，0x01~0xFE=有效分组，0xFF=保留
+- 同组读取保证原子性（同一 PLC 扫描周期内快照）
 
----
-
-### 议题 3：写操作确认机制 ✅（2026-05-17 修订）
-**原设计废除**：CycleClass 推断 ACK 策略。
-**新决策**：ACK_REQ 由上位机根据操作类型直接决定，主站无条件响应。
-
-| 操作类型 | Flags.ACK_REQ | 说明 |
-|----------|--------------|------|
-| 周期写（periodic_write） | 0 — 无 ACK | fire & forget |
-| 手动写入 | 1 — 有 ACK | 需确认写入状态 |
-
-写入错误诊断保留 ParamID：0xFFF0~0xFFF2（Access=RO，GroupID=0，CycleClass=MANUAL）。
-
----
+### 议题 3：ACK 确认机制 ✅（2026-05-17 修订）
+- **决策**：`Flags.ACK_REQ` 由上位机根据操作类型直接置位，主站无条件响应
+- 周期写 ACK_REQ=0（fire & forget），手动写 ACK_REQ=1
+- **CycleClass 完全退出 ACK 推断**，仅服务于读取侧（订阅间隔/轮询建议）
 
 ### 议题 4：参数表动态性 + DictHash ✅
-DictHash = CRC16/MODBUS。启动拉取一次，运行时不自动重拉。接口落点：GET_PARAM_DICT ACK / PONG / HELLO_ACK。
+- 启动/手动拉取一次，运行时不自动重拉
+- **DictHash = CRC16/MODBUS**
+- 接口落点：GET_PARAM_DICT ACK、PING_ACK/PONG、HELLO_ACK
 
----
-
-### 议题 4.5：参数表自描述增强 ✅
-Entry 新增 Unit（8B）+ Desc（变长≤64B）。新增 GET_ENUM_MAP（CMD 0x12/0x92）。新增 STRING64(0x10) / STRING128(0x11)。固定部分 17B，每页最多 12 条。
-
----
+### 议题 4.5：自描述增强 ✅
+- PARAM_ENTRY 新增 `Unit(8B定长)` + `Desc(变长≤64B)`
+- 新增 `GET_ENUM_MAP`（0x12/0x92）
+- 新增 DataType：STRING64(0x10)、STRING128(0x11)
+- 原固定部分 17B（基础 9B + Unit 8B）
 
 ### 议题 5：HELLO 握手扩展 ✅
-HELLO_ACK 固定 8B + 变长 DeviceName（1~32B）。FW SemVer 三段兼容规则。新增保留 ParamID 0xFFEF（DeviceName）。保留区段：0xFFEF~0xFFFF。
+- HELLO_ACK 新增：DictHash(2B) + ParamCount(2B) + FW_Major/Minor/Patch(3B) + DevNameLen(1B) + DeviceName(变长)
+- FW SemVer 兼容规则：Major 不一致拒绝连接，Minor 降级运行，Patch 静默
+- 新增保留 ParamID：`0xFFEF` DeviceName(STRING32)
 
----
+### 议题 6：UART 封装 ✅
+- 2B 长度前缀外壳（方案 B1）
+- UART 内层最大帧 254B，Payload 上限 239B
+- 分页建议 PageSize=1（最保守），PageSize=2~3（典型）
+- 不引入 RS-485 地址仲裁、SLIP、串口专用 CMD
 
-### 议题 6：串口场景封装 ✅
-UART 场景加 2B FrameLen 外壳（方案 B1）。最大帧长 256B，最大 Payload 239B，推荐 4 条/页。不引入 RS-485 仲裁/SLIP/专用 CMD。
+### 议题 7：GROUP_ENTRY 注册机制 ✅（2026-05-18 第二次修订）
+- **新增指令**：`GET_GROUP_DICT`（0x13/0x93）
+- GROUP_ENTRY 结构：`GroupID(1B) + CycleClass(1B) + MemberCount(1B) + NameLen(1B) + Name + DescLen(1B) + Desc`
+- **`MemberCount`：主站自动统计，不需手动配置**
+- CycleClass 仅属读取侧建议，**不参与 ACK 推断**
+- **WRITE_GROUP 语义改为 best-effort + 支持子集写**（Count 无需等于组内总数）
+- DictHash 字节串：`GroupID(1B) + MemberCount(1B) + NameLen(1B) + Name`
+- `0x0A` ErrCode 修订为越组写入（ParamID 不属于目标 GroupID）
 
----
-
-### 议题 7：GROUP_ENTRY 注册机制 ✅（2026-05-17 修订）
-GROUP_ENTRY 结构：GroupID + CycleClass + NameLen + Name + DescLen + Desc。新增 GET_GROUP_DICT（CMD 0x13/0x93）。WRITE_GROUP 全量写语义，不支持子集写。
-
-**DictHash 修订**：GROUP_ENTRY.CycleClass **不再参与** DictHash。
-- DictHash GROUP_ENTRY 部分：`GroupID(1B) + NameLen(1B) + Name(NameLen B)`
-- 原因：ACK_REQ 不再依赖 CycleClass，CycleClass 退化为纯建议值，变更不影响协议行为。
-
----
-
-### 议题 8：SUBSCRIBE / NOTIFY 推送机制 ✅
-**决策**：Periodic Only，无 Deadband，无 ACK，断线清除，嵌入式兼容编译宏。
-
-- `Mode=0x00` 为当前唯一合法值；`Mode` 字段预留用于未来扩展
-- NOTIFY（CMD=0x40）：主站主动发出，Flags.ACK_REQ 恒为 0
-- 断线（收到 HELLO_REQ）自动清除全部订阅槽位
-- 槽位上限：实现端编译宏决定；推荐工控机 32×20，嵌入式 8×8（~520B）
-- 新增 ErrCode：0x0B（槽位满）/ 0x0C（SubID 不存在）/ 0x0D（变量数超限）
-
----
+### 议题 8：SUBSCRIBE / NOTIFY 推送 ✅
+- CMD 分区：订阅管理 0x50~0x52，主站主动推送 0x40
+- Periodic Only（Mode=0x00），Deadband 不在 v2.0 范围
+- 断线即失效，生命周期与会话绑定
+- 槽位上限由实现端编译宏自行决定
 
 ### 议题 9：参数表语义定位与写操作模型 ✅（2026-05-17 新增）
+- 参数表只描述变量物理属性，不预定义操作行为
+- CycleClass = 物理更新周期，读取侧参考
+- 写操作由上位机业务层完全自主决定
+- GROUP = 岂用于结构化配置参数写入场景
 
-**原则一：参数表只描述变量物理属性，不预定义操作行为。**
+### 议题 10：PARAM_ENTRY 值域范围字段 ✅（2026-05-18 新增）
+- PARAM_ENTRY 新增：`RangeFlags(1B) + MinVal(LREAL 8B) + MaxVal(LREAL 8B)`
+- **PARAM_ENTRY 固定传输部分从 17B 增至 34B**
+- `RangeFlags`：Bit0=MinValid，Bit1=MaxValid，0x00=无范围约束
+- BOOL/STRING 类型强制 RangeFlags=0x00
+- 主站写入前将待写入值转换为 LREAL 后与 MinVal/MaxVal 比较
+- `ErrCode=0x08` 正式定义：**写入值超出注册值域范围**
+- **`PARAM_DICT_PAGE_SIZE` 从 12 改为 10**（最坏单条 132B × 10 = 1327B ≤ 1385B）
+- GET_PARAM_DICT REQ 新增 `PageSize(1B)`，0=默认，1~10=使用请求值，>10按 10 处理
+- RangeFlags/MinVal/MaxVal 参与协议传输，**不参与 DictHash**
 
-| 字段 | 语义 | 服务方向 |
-|------|------|---------|
-| `ParamID` | 变量唯一标识 | 寻址 |
-| `DataType / ByteSize` | 数据类型与长度 | 解析 |
-| `Access` | RO / RW | 写入合法性判断 |
-| `GroupID` | 所属分组 | 组操作寻址 |
-| `CycleClass` | 变量物理更新周期 | **读取侧**参考（订阅间隔 / 轮询建议） |
-| `Unit / Desc` | 单位与描述 | 展示信息 |
+### 议题 11：写入前提条件 WriteEnable ✅（2026-05-18 新增）
+- PARAM_ENTRY 新增纯主站运行时字段：
+  - TwinCAT ST：`pWriteEnable : POINTER TO BOOL`，0=无条件可写
+  - 嵌入式 C：`bool *p_write_enable`，NULL=无条件可写
+- **不参与协议传输，不参与 DictHash**
+- 写入判断顺序（WRITE_BY_ID 与 WRITE_GROUP 共用）：
+  - ① ParamID 不存在 → 0x04
+  - ② Access=RO → 0x05
+  - ③ pWriteEnable 非空且值为 FALSE → 0x0E
+  - ④ 值域超出 RangeFlags 约束 → 0x08
+  - ⑤ MEMCPY 写入成功 → 0x00
+- `ErrCode=0x0E` 新增：写入前提条件不满足
 
-**原则二：写操作由上位机业务层完全自主决定。**
-- 周期写：`periodic_write` 勾选 → WRITE_GROUP，ACK_REQ=0
-- 手动写入：用户触发 → WRITE_BY_ID / WRITE_GROUP，ACK_REQ=1
-
-**原则三：功能-协议路径划分。**
-
-| 上位机功能 | 协议路径 |
-|-----------|---------|
-| Watch 窗口 | `SUBSCRIBE / READ_BY_ID` |
-| Scope 示波器 | `SUBSCRIBE`（5~10ms） |
-| 高频采样 | `TRACE`（≥250μs） |
-| 周期配置写 | `WRITE_GROUP`（ACK_REQ=0） |
-| 手动参数写 | `WRITE_BY_ID / WRITE_GROUP`（ACK_REQ=1） |
-
-**原则四：GROUP 专服务于强关联配置参数的原子写入，不用于 Watch/Scope/Trace。**
-
----
-
-## 待执行文档修改（下一 Thread 首要任务）
-
-### ADR_v2.0.md 需修改：
-1. **议题 3 全量重写**：废除 CycleClass 推断表，改为操作类型决定 ACK 表
-2. **议题 7 第3条**：ACK_REQ 推断规则改为操作类型决定
-3. **议题 7 第5条**：DictHash GROUP_ENTRY 移除 CycleClass，更新 hash 字节串和说明
-4. **新增议题 9**：完整内容如上
-
-### FrameFormat_v2.0.md 需修改：
-1. **§3.3 CMD 表**：WRITE_BY_ID / WRITE_GROUP 说明文字，移除「CycleClass 推断」字样
-2. **§4.7 WRITE_BY_ID**：删除 CycleClass 推断段落和混合规则 Note，改为操作类型决定说明
-3. **§4.10 WRITE_GROUP**：同上
-4. **§4.4c GET_GROUP_DICT**：CycleClass 注释改为「物理操作周期建议值，不参与 ACK 推断」
-5. **§七 DictHash**：Step 2 GROUP_ENTRY 字节串移除 CycleClass(1B)，更新参与/不参与列表和说明
-6. **§八 待确认事项 #6**：说明文字更新为「已通过议题 3 修订确认」
+### 议题 12：GROUP_ENTRY MemberCount ✅（2026-05-18 新增）
+- MemberCount 字段已统一至议题 7 GROUP_ENTRY 结构中（不单独存在）
+- MemberCount 由主站在参数注册完成后自动统计
+- **MemberCount 参与 DictHash**：组成员数变化影响上位机对组的理解
 
 ---
 
-## CMD 总表速查（v2.0 最终）
+## 三、DictHash 字段参与规则（当前冻结版）
 
-| 区段 | CMD REQ | CMD ACK | 名称 |
-|------|---------|---------|------|
-| Legacy | 0x01~0x05 | 0x81~0x85 | READ_REQ / WRITE_REQ / PING / SAVE / HELLO |
-| 参数表 | 0x10 | 0x90 | GET_PARAM_DICT |
-| 参数表 | 0x11 | 0x91 | GET_PARAM_BY_ID |
-| 参数表 | 0x12 | 0x92 | GET_ENUM_MAP |
-| 参数表 | 0x13 | 0x93 | GET_GROUP_DICT |
-| 读写 | 0x20 | 0xA0 | READ_BY_ID |
-| 读写 | 0x21 | 0xA1 | WRITE_BY_ID |
-| 读写 | 0x22 | 0xA2 | READ_GROUP |
-| 读写 | 0x23 | 0xA3 | WRITE_GROUP |
-| Trace | 0x30~0x34 | 0xB0~0xB4 | TRACE_CONFIG/START/STOP/STATUS/UPLOAD |
-| 主动推送 | — | 0x40 | NOTIFY（主站主动） |
-| 订阅管理 | 0x50 | 0xD0 | PARAM_SUBSCRIBE |
-| 订阅管理 | 0x51 | 0xD1 | PARAM_UNSUBSCRIBE |
-| 订阅管理 | 0x52 | 0xD2 | SUBSCRIBE_CLEAR |
-| 错误 | — | 0xEE | ERR |
+### PARAM_ENTRY 参与
+
+```
+ParamID(2B) + DataType(1B) + ByteSize(1B) + Access(1B) +
+GroupID(1B) + NameLen(1B) + Name(NameLen B)
+```
+
+| 字段 | 参与 Hash | 理由 |
+|------|-----------|------|
+| ParamID | ✅ | 寻址 |
+| DataType / ByteSize | ✅ | 解析 |
+| Access | ✅ | 写入判断 |
+| GroupID | ✅ | 组操作寻址 |
+| NameLen + Name | ✅ | 识别 |
+| CycleClass | ❌ | 读取侧建议值 |
+| Unit / DescLen / Desc | ❌ | 展示信息 |
+| RangeFlags / MinVal / MaxVal | ❌ | 写入保护，不影响寻址和结构 |
+
+### GROUP_ENTRY 参与（按 GroupID 升序，追加在 PARAM_ENTRY 之后）
+
+```
+GroupID(1B) + MemberCount(1B) + NameLen(1B) + Name(NameLen B)
+```
+
+| 字段 | 参与 Hash | 理由 |
+|------|-----------|------|
+| GroupID | ✅ | 组寻址 |
+| MemberCount | ✅ | 组规模展示和组操作构建 |
+| NameLen + Name | ✅ | 组识别 |
+| CycleClass | ❌ | 读取侧建议值 |
+| DescLen + Desc | ❌ | 展示信息 |
 
 ---
 
-## 技术栈备忘
+## 四、PARAM_ENTRY 完整结构（当前冻结版）
 
-- **主站**：TwinCAT 3 XAE，IEC 61131-3 ST 语言
-- **上位机**：C# .NET 4.7.2 WinForms，Visual Studio
-- **通信**：UDP（主场景，端口 5051），UART 115200（未来兼容）
-- **仓库**：https://github.com/LuJiayu5862/CLS-II-118/tree/dev/protocol-v2.0/CLS-II/_docs/Protocol_v2.0
+```
+ParamID    : UINT   2B
+DataType   : BYTE   1B
+ByteSize   : BYTE   1B
+Access     : BYTE   1B
+GroupID    : BYTE   1B
+CycleClass : BYTE   1B   // 物理更新周期，读取侧参考，不参与 ACK/Hash
+Unit       : BYTE[8] 8B  // 定长 UTF-8，不足补0
+NameLen    : BYTE   1B
+Name       : NameLen B   // 最长 32B
+DescLen    : BYTE   1B
+Desc       : DescLen B   // 最长 64B
+RangeFlags : BYTE   1B   // Bit0=MinValid, Bit1=MaxValid
+MinVal     : LREAL  8B   // 最小允许写入值
+MaxVal     : LREAL  8B   // 最大允许写入值
+────────────────────────────────────────────────────────────
+固定部分 = 34B（原 17B + RangeFlags/MinVal/MaxVal 17B）
+最坏单条 Entry = 34 + 1 + 32 + 1 + 64 = 132B
+
+主站运行时字段（不参与协议传输，不参与 DictHash）：
+pWriteEnable : POINTER TO BOOL   // TwinCAT ST，0=无条件可写
+```
 
 ---
 
-## 下一步待办（供新 Thread 参考）
+## 五、GROUP_ENTRY 完整结构（当前冻结版）
 
-| 优先级 | 文件 | 任务 |
-|--------|------|------|
-| 🔥 高 | `ADR_v2.0.md` | 按上述修改清单更新议题 3/7/9 |
-| 🔥 高 | `FrameFormat_v2.0.md` | 按上述修改清单更新 §3.3/§4.7/§4.10/§4.4c/§七/§八 |
-| 🔥 高 | `Protocol_v2.0_Context_Snapshot.md` | 替换为本文件内容 |
-| 📝 中 | `ParamEntry_DataStructure.md` | 编写 ST 端 PARAM_ENTRY + GROUP_ENTRY 结构体定义与注册宏 |
-| 📝 中 | `TraceBuffer_Design.md` | 设计 FB_TraceBuffer 功能块 ST 实现 |
-| 📝 中 | `CSharp_ParamDictionary.md` | C# 端 ParamDictionary 类设计，含 DictHash 校验逻辑 |
-| 📝 低 | `Migration_v1.1_to_v2.0.md` | v1.1 → v2.0 迁移指南 |
+```
+GroupID     : BYTE  1B
+CycleClass  : BYTE  1B   // 组推荐操作频率，读取侧建议值，不参与 ACK/Hash
+MemberCount : BYTE  1B   // 本组已注册 PARAM 数，主站自动统计
+NameLen     : BYTE  1B
+Name        : NameLen B  // 最长 32B
+DescLen     : BYTE  1B
+Desc        : DescLen B  // 最长 64B
+```
+
+---
+
+## 六、ErrCode 完整速查表
+
+| ErrCode | 含义 | 来源 |
+|---------|------|------|
+| 0x00 | 成功 | — |
+| 0x01 | 未知 CMD | v1.1 继承 |
+| 0x02 | PayloadLen 不合法 | v1.1 继承 |
+| 0x03 | CRC 错误 | v1.1 继承 |
+| 0x04 | ParamID 不存在 | v2.0 |
+| 0x05 | 变量只读 | v2.0 |
+| 0x06 | 参数表页码越界 | v2.0 |
+| 0x07 | Trace Buffer 未就绪 | v2.0 |
+| **0x08** | **写入值超出注册值域范围** | **议题10 正式定义** |
+| 0x09 | GroupID 不存在或未注册 | v2.0 |
+| **0x0A** | **越组写入（ParamID 不属于目标 GroupID）** | **议题7 修订** |
+| 0x0B | 订阅槽位已满 | 议题8 |
+| 0x0C | SubID 不存在或已过期 | 议题8 |
+| 0x0D | 订阅变量数超出单槽上限 | 议题8 |
+| **0x0E** | **写入前提条件不满足（pWriteEnable）** | **议题11 新增** |
+| 0x0F~0xFF | 预留 | — |
+
+---
+
+## 七、上位机写入判断顺序（WRITE_BY_ID 与 WRITE_GROUP 共用）
+
+```
+① ParamID 不存在                    → 0x04
+② Access = RO                       → 0x05
+③ pWriteEnable 非空且值为 FALSE     → 0x0E
+④ 值域超出 RangeFlags 约束           → 0x08
+⑤ MEMCPY 写入成功                   → 0x00
+```
+
+**WRITE_GROUP 额外判断**：① 中若 ParamID 不属于目标 GroupID → 0x0A
+
+---
+
+## 八、分页参数当前冻结值
+
+| 场景 | PARAM_DICT_PAGE_SIZE | 备注 |
+|------|---------------------|------|
+| UDP 默认 | **10** | 最坏单条 132B × 10 = 1327B ≤ 1385B |
+| UART 最保守 | 1 | 最坏单条 132B ≤ 239B Payload 上限 |
+| UART 典型 | 2~3 | 短 Name、无 Desc 场景 |
+
+GET_PARAM_DICT REQ 新增：`PageSize(1B)`，0=默认，1~10=使用请求值，>10=按 10 处理。
+
+---
+
+## 九、待处理工作项
+
+| 项目 | 状态 |
+|------|------|
+| README.md 同步议题9~12 | ⚠️ 待推送 |
+| ParamEntryDataStructure.md （如有）同步 Range 字段 | ⚠️ 待确认是否存在 |
+| CSharpParamDictionary.md 同步 PageSize + Range 解析 | ⚠️ 待确认是否存在 |
+| Migration v1.1→v2.0 说明文档 | ⚠️ 待编写 |
+| TRACE_UPLOAD 进一步 MTU 验算（8通道×LREAL×100 = 6400B） | ⚠️ 待确认 |
+
+---
+
+## 十、关键设计原则备忘
+
+1. **CycleClass 只属读取侧**：不参与 ACK 推断，不参与 DictHash（PARAM 和 GROUP 均同）
+2. **ACK_REQ 由上位机操作类型决定**：周期写=0，手动写=1，主站无条件响应
+3. **WRITE_GROUP = best-effort**：支持子集写，逐 Item 独立判断，不保证原子性
+4. **Range 字段不参与 DictHash**：写入保护，不影响结构
+5. **MemberCount 参与 DictHash**：组成员数变化影响协议行为
+6. **pWriteEnable 不参与协议传输**：纯主站运行时字段，不参与 DictHash
+7. **ERR 返回策略**：单个写入失败进 WriteResult，不返回整帧 ERR；越组写入（ParamID 不属于目标 GroupID）进 WriteResult=0x0A
